@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Layout Astro</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>LOGO</h1>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="#">Início</a></li>
+        <li><a href="#">Modo Manual</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <div class="search-area">
+        <input type="text" id="campoPesquisa" placeholder="Pesquisar Astro">
+        <button onclick="buscarAstro()">Buscar</button>
+        <input type="text" id="latitude" placeholder="Latitude">
+      <input type="text" id="longitude" placeholder="Longitude">
+      </div>
+      <div class="main-box"><p id="camContainer"></p></div>
+      <div id="buttonBox">
+        <button class="buttonStyle" onclick="iniciarRastreamento()">Iniciar Rastreamento</button>
+        <button class="buttonStyle" onclick="pararRastreamento()">Parar Rastreamento</button>
+      </div>
+
+      <div id="resultado"></div>
+    </main>
+  </div>
+  <script src="/static/script.js"></script>
+</body>
+</html>
