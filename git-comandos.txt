@@ -1,0 +1,64 @@
+==================================
+📌 COLINHA DE COMANDOS GIT - InnovaAstro
+==================================
+
+1️⃣ VERIFICAR O QUE MUDOU
+----------------------------------
+git status
+# Mostra arquivos modificados desde o último commit
+
+
+2️⃣ ADICIONAR ALTERAÇÕES
+----------------------------------
+git add .
+# Adiciona todos os arquivos modificados
+
+git add nome-do-arquivo
+# Adiciona apenas um arquivo específico
+
+
+3️⃣ CRIAR UM COMMIT
+----------------------------------
+git commit -m "Descrição clara do que foi alterado"
+# Exemplo:
+# git commit -m "Melhora rastreamento do laser no optical_flow.py"
+
+
+4️⃣ ENVIAR PARA O GITHUB
+----------------------------------
+git push
+# Envia para o repositório remoto configurado
+
+
+5️⃣ VER HISTÓRICO DE COMMITS
+----------------------------------
+git log --oneline
+# Mostra todos os commits resumidos com seus IDs
+
+
+6️⃣ VOLTAR PARA UM COMMIT ESPECÍFICO
+----------------------------------
+git checkout ID_DO_COMMIT
+# Vai para o commit escolhido (modo temporário)
+git checkout main
+# Volta para o estado atual
+
+git reset --hard ID_DO_COMMIT
+# Volta DEFINITIVAMENTE para esse commit (apaga o que veio depois)
+git push --force
+# Atualiza o GitHub após um reset
+
+
+7️⃣ CRIAR UMA BRANCH (para testar sem mexer no código principal)
+----------------------------------
+git checkout -b nome-da-branch
+# Cria e entra na nova branch
+
+git checkout main
+# Volta para a branch principal
+
+
+8️⃣ ATUALIZAR PROJETO COM O CÓDIGO DO GITHUB (se alguém mudou lá)
+----------------------------------
+git pull
+# Puxa alterações do repositório remoto
