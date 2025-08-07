@@ -63,7 +63,7 @@ def iniciar_rastreamento():
 
             if abs(dx) > tolerancia or abs(dy) > tolerancia:
                 try:
-                    url = f"http://192.168.15.13/mover?az={delta_az:.2f}&alt={delta_alt:.2f}"
+                    url = f"http://192.168.15.2/mover?az={delta_az:.2f}&alt={delta_alt:.2f}"
                     requests.get(url, timeout=1)
                     print(f"[RASTREAMENTO] Movendo: ΔAZ={delta_az:.2f}, ΔALT={delta_alt:.2f}")
                 except Exception as e:

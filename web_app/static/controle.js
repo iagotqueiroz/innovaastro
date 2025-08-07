@@ -1,5 +1,5 @@
 function enviarComando(direcao) {
-    fetch('/controle', {
+    fetch('/controle/manual', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -13,5 +13,7 @@ function enviarComando(direcao) {
             console.error('Erro ao enviar comando.');
         }
     })
-    .catch(error => console.error('Erro na requisição:', error));
+    .catch(error => {
+        console.error('Erro na requisição:', error);
+    });
 }

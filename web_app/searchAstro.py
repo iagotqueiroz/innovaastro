@@ -60,7 +60,7 @@ def buscar_astro():
 
     # Envia os graus para a ESP32
     try:
-        url = f"http://192.168.15.13/mover?az={az.degrees:.2f}&alt={alt.degrees:.2f}"
+        url = f"http://192.168.15.2/mover?az={az.degrees:.2f}&alt={alt.degrees:.2f}"
         requests.get(url, timeout=2)
     except Exception as e:
         print(f"[ESP32] Falha: {e}")
