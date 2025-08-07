@@ -44,6 +44,44 @@ void handleMover() {
   }
 }
 
+// ======== Incrementos para controle manual (em graus) ========
+const float incrementoAz = 1.0;   // Cada comando "direita/esquerda" move 1 grau
+const float incrementoAlt = 1.0;  // Cada comando "cima/baixo" move 1 grau
+
+// ======== NOVA ROTA: Controle manual via comandos simples ========
+void handleControle() {
+  if (!server.hasArg("comando")) {
+    server.send(400, "text/plain", "Parâmetro 'comando' ausente.");
+    return;
+  }
+
+  String comando = server.arg("comando");
+  Serial.println("[COMANDO MANUAL] " + comando);
+
+  if (comando == "cima") {
+    posicaoAtualAlt += incrementoAlt * passosPorGrau;
+    motorAlt.moveTo(posicaoAtualAlt);
+  } else if (comando == "baixo") {
+    posicaoAtualAlt -= incrementoAlt * passosPorGrau;
+    motorAlt.moveTo(posicaoAtualAlt);
+  } else if (comando == "direita") {
+    posicaoAtualAz += incrementoAz * passosPorGrau;
+    motorAz.moveTo(posicaoAtualAz);
+  } else if (comando == "esquerda") {
+    posicaoAtualAz -= incrementoAz * passosPorGrau;
+    motorAz.moveTo(posicaoAtualAz);
+  } else if (comando == "parar") {
+    motorAz.stop();
+    motorAlt.stop();
+  } else {
+    server.send(400, "text/plain", "Comando inválido.");
+    return;
+  }
+
+  server.send(200, "text/plain", "Comando '" + comando + "' executado.");
+}
+
+
 void setup() {
   Serial.begin(115200);
 
@@ -66,6 +104,7 @@ void setup() {
   motorAlt.setCurrentPosition(0);
 
   server.on("/mover", handleMover);
+  server.on("/controle", handleControle);
   server.begin();
   Serial.println("[✓] Servidor HTTP iniciado!");
 }

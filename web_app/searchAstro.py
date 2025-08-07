@@ -2,9 +2,11 @@ from optical_flow import iniciar_rastreamento, parar_rastreamento, set_camera_re
 from flask import Flask, render_template, request, jsonify, Response, url_for
 from skyfield.api import Topos, load
 from datetime import datetime, timezone
+from flask import Flask, render_template, request, jsonify
 import cv2
 import requests
 import os
+
 
 # === CONFIGURAÇÃO DO FLASK ===
 app = Flask(
@@ -103,6 +105,25 @@ def gerar_frames():
 def video_feed():
     return Response(gerar_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+# ROTA CONTROLES
+
+@app.route('/controle')
+def pagina_controle():
+    return render_template('controle.html')
+
+@app.route('/controle', methods=['POST'])
+def receber_comando():
+    data = request.get_json()
+    comando = data.get('comando', '')
+
+    print(f"[COMANDO RECEBIDO] {comando}")
+
+    # Em breve: Aqui enviaremos esse comando para a ESP32 via HTTP
+
+    return jsonify({"status": "comando recebido", "comando": comando})
+
 
 # === EXECUÇÃO DO SERVIDOR FLASK ===
 if __name__ == '__main__':

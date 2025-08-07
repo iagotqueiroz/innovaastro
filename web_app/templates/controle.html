@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle Manual</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='controle.css') }}">
+</head>
+<body>
+    <h1>Controle Manual do Telescópio</h1>
+    <div class="controle-container">
+        <button onclick="enviarComando('cima')">↑</button>
+        <div class="botoes-meio">
+            <button onclick="enviarComando('esquerda')">←</button>
+            <button onclick="enviarComando('parar')">⏹</button>
+            <button onclick="enviarComando('direita')">→</button>
+        </div>
+        <button onclick="enviarComando('baixo')">↓</button>
+    </div>
+    <script src="{{ url_for('static', filename='controle.js') }}"></script>
+</body>
+</html>
