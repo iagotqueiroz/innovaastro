@@ -1,0 +1,12 @@
+[33me990c2d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcontrole-html[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD
+[33me990c2d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcontrole-html[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{1}: checkout: moving from controle-html to controle-html
+[33me990c2d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcontrole-html[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{2}: reset: moving to origin/main
+[33m88511fe[m[33m ([m[1;31morigin/controle-html[m[33m)[m HEAD@{3}: commit: Divisão de funções em outros arquivos, mas falta testar e ver se estar fubcionado e fazer funcionar
+[33m40b851b[m HEAD@{4}: checkout: moving from main to controle-html
+[33me990c2d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcontrole-html[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{5}: commit: A função de buscar o astro ainda está defasada pois ainda não conseguimos colocar os microsteppings. Precisamos melhorar. E a outra função de rastreio a partir de luminosidade optical flow, está funcional, porem ainda falta calibração.
+[33m76458fb[m HEAD@{6}: commit: adicionei o arquivo com os comandos do git
+[33m6413572[m HEAD@{7}: checkout: moving from 9f630d46b0b11b27c5d4cdec55578cc94ea26cc2 to main
+[33m9f630d4[m HEAD@{8}: checkout: moving from main to 9f630d4
+[33m6413572[m HEAD@{9}: commit: Criação de README.md
+[33m9f630d4[m HEAD@{10}: Branch: renamed refs/heads/master to refs/heads/main
+[33m9f630d4[m HEAD@{12}: commit (initial): Primeiro commit do projeto em andamento, logo depois de adicionar a função de optical flow, tentar seguir o astro
