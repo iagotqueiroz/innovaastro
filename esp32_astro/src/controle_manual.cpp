@@ -25,23 +25,28 @@ void configurarControleManual() {
     if (comando == "cima") {
       posicaoAtualAlt += incrementoAlt * passosPorGrau;
       motorAlt.moveTo(posicaoAtualAlt);
+      Serial.println("[MOVIMENTO] Subindo Altitude.");
     } else if (comando == "baixo") {
       posicaoAtualAlt -= incrementoAlt * passosPorGrau;
       motorAlt.moveTo(posicaoAtualAlt);
+      Serial.println("[MOVIMENTO] Descendo Altitude.");
     } else if (comando == "direita") {
       posicaoAtualAz += incrementoAz * passosPorGrau;
       motorAz.moveTo(posicaoAtualAz);
+      Serial.println("[MOVIMENTO] Movendo Direita.");
     } else if (comando == "esquerda") {
       posicaoAtualAz -= incrementoAz * passosPorGrau;
       motorAz.moveTo(posicaoAtualAz);
+      Serial.println("[MOVIMENTO] Movendo Esquerda.");
     } else if (comando == "parar") {
       motorAz.stop();
       motorAlt.stop();
-    } else {
-      server.send(400, "text/plain", "Comando inválido.");
-      return;
+      Serial.println("[MOVIMENTO] Motores parados.");
     }
 
-    server.send(200, "text/plain", "Comando '" + comando + "' executado.");
+
+    // Resposta JSON
+    String resposta = "{\"status\": \"sucesso\", \"mensagem\": \"Comando '" + comando + "' executado.\"}";
+    server.send(200, "application/json", resposta);
   });
 }

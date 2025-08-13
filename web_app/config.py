@@ -1,1 +1,1 @@
-ESP32_IP = "192.168.15.2"  # Substitua aqui se o IP mudar
+ESP32_IP = "10.62.232.129"  # Substitua aqui se o IP mudar

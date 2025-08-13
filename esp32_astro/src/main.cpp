@@ -7,8 +7,8 @@ void configurarBuscarAstro();
 void configurarControleManual();
 void configurarRastreamentoCamera();
 
-const char* ssid = "PEDRO HENRIQUE";
-const char* password = "20240204";
+const char* ssid = "A35 de Gustavo";
+const char* password = "12345678";
 
 #define DIR_AZ 17
 #define STEP_AZ 16
@@ -30,10 +30,10 @@ void setup() {
   }
   Serial.println("\n[✓] Conectado ao Wi-Fi. IP: " + WiFi.localIP().toString());
 
-  motorAz.setMaxSpeed(200);
-  motorAz.setAcceleration(30);
-  motorAlt.setMaxSpeed(200);
-  motorAlt.setAcceleration(30);
+  motorAz.setMaxSpeed(500);
+  motorAz.setAcceleration(100);
+  motorAlt.setMaxSpeed(500);
+  motorAlt.setAcceleration(100);
 
   motorAz.setCurrentPosition(0);
   motorAlt.setCurrentPosition(0);

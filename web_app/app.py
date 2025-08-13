@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, Response
 from buscar_astro import mover_para_astro
 from controle_manual import enviar_comando_manual
-from optical_flow import iniciar_rastreamento, parar_rastreamento, set_camera_reference
+#from optical_flow import iniciar_rastreamento, parar_rastreamento, set_camera_reference
 from config import ESP32_IP
 import cv2
 
@@ -24,13 +24,16 @@ def abrir_primeira_camera():
     raise RuntimeError("[ERRO] Nenhuma câmera disponível.")
 
 camera = abrir_primeira_camera()
-set_camera_reference(camera)
+#set_camera_reference(camera)
 
 # === ROTAS ===
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/rastreamento')
+def rastreamento():
+    return render_template('rastreamento.html')
 
 @app.route('/buscar', methods=['POST'])
 def buscar():
@@ -67,8 +70,16 @@ def controle_post():
     data = request.get_json()
     comando = data.get('comando', '')
     print(f"[COMANDO RECEBIDO] {comando}")
-    enviar_comando_manual(comando)
-    return jsonify({"status": "comando enviado", "comando": comando})
+
+    try:
+        response = enviar_comando_manual(comando)
+        print(f"[ESP32] Resposta da ESP32: {response.text}")  # Log de resposta da ESP32
+        return jsonify({"status": "comando enviado", "comando": comando})
+    except Exception as e:
+        print(f"[ERRO] Falha ao enviar comando: {e}")
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+
 
 
 @app.route('/opticalflow/start', methods=['POST'])

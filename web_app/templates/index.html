@@ -4,35 +4,66 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Layout Astro</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"> -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
-  <header>
-    <h1>LOGO</h1>
-  </header>
-
-  <div class="layout">
-    <nav class="sidebar">
-      <ul>
-        <li><a href="#">Início</a></li>
-        <li><a href="#">Modo Manual</a></li>
-      </ul>
+  <header class="w-full bg-gray-50">
+    <nav class="w-10/12 mx-auto">
+      <div class="w-full flex flex-row justify-between items-center p-4">
+        <img src="../static/imgs/91fa777f-1be0-44a8-a44b-e868b7f4032a.png" class="w-20"/>
+        <div>
+          <ul class="flex flex-row gap-4">
+            <li><a href="/">Início</a></li>
+            <li><a href="/controle">Modo Manual</a></li>
+            <li><a href="/rastreamento">Rastreamento</a></li>
+          </ul>
+        </div>
+      </div>
     </nav>
-
-    <main class="content">
-      <div class="search-area">
-        <input type="text" id="campoPesquisa" placeholder="Pesquisar Astro">
-        <button onclick="buscarAstro()">Buscar</button>
-        <input type="text" id="latitude" placeholder="Latitude">
-      <input type="text" id="longitude" placeholder="Longitude">
+  </header>
+<div class="w-10/12 mx-auto text-blue-500 p-4 mt-4">
+Informe os dados do Astro abaixo para iniciar.
+</div>
+  <div class="p-4">
+    <main class="w-10/12 mx-auto"> 
+<hr style="border: 1px solid #e4e4e4" class="mb-8"/>
+      <div class="search-area grid gap-4">
+        <div class="grid-cols-1 col-span-2 ">
+          <div class="w-full flex flex-row space-between gap-4">
+            <div class="flex-1">
+            <input
+             type="text" 
+             id="campoPesquisa" 
+             placeholder="Pesquisar Astro" 
+             class="w-full p-4 border-1 border-gray-200 rounded-md">
+             </div>
+             <div>
+            <button 
+            id="buscar"
+            class="bg-blue-500 text-white p-4 rounded-md"
+            onclick="buscarAstro()">
+              Buscar
+            </button>
+            </div>
+            </div>
+        </div>
+        <div class="grid-cols-1 col-span-2 md:col-span-1 lg:col-span-0">   
+          <input 
+          type="text" 
+          id="latitude" 
+          placeholder="Latitude"
+          class="w-full p-4 border-1 border-gray-200 rounded-md">
+        </div>
+        <div class="grid-cols-1 col-span-2 md:col-span-1 lg:col-span-0">
+             <input type="text" id="longitude" placeholder="Longitude"
+             class="w-full p-4 border-1 border-gray-200 rounded-md">
+        </div>
       </div>
-      <div class="main-box"><p id="camContainer"></p></div>
-      <div id="buttonBox">
-        <button class="buttonStyle" onclick="iniciarRastreamento()">Iniciar Rastreamento</button>
-        <button class="buttonStyle" onclick="pararRastreamento()">Parar Rastreamento</button>
-      </div>
-
       <div id="resultado"></div>
+      <hr style="border: 1px solid #e4e4e4" class="mb-8 mt-8"/>
+      <div class="main-box"><p id="camContainer"></p></div>
     </main>
   </div>
   <script src="{{ url_for('static', filename='script.js') }}"></script>
