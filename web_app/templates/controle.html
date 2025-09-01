@@ -4,8 +4,66 @@
     <meta charset="UTF-8">
     <title>Controle Manual</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='controle.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
+     <header class="w-full" style="background-color: #0f172a">
+    <nav class="w-10/12 mx-auto">
+      <div class="w-full flex flex-row justify-between items-center p-4">
+        <img src="../static/imgs/logo-branca.png" class="w-20"/>
+        <div>
+          <ul class="flex flex-row gap-4">
+            <li><a href="/">Início</a></li>
+            <li><a href="/controle">Modo Manual</a></li>
+            <li><a href="/rastreamento">Rastreamento</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </header>
+    <h1>Controle Manual do Telescópio</h1>
+    <div class="controle-container">
+        <button onclick="enviarComando('cima')">↑</button>
+        <div class="botoes-meio">
+            <button onclick="enviarComando('esquerda')">←</button>
+            <button onclick="enviarComando('parar')">⏹</button>
+            <button onclick="enviarComando('direita')">→</button>
+        </div>
+        <button onclick="enviarComando('baixo')">↓</button>
+    </div>
+
+    <!-- Coloque o JS aqui, antes do fechamento do body -->
+    <script src="{{ url_for('static', filename='controle.js') }}"></script>
+</body>
+</html>
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle Manual</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='controle.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+     <header class="w-full" style="background-color: #0f172a">
+    <nav class="w-10/12 mx-auto">
+      <div class="w-full flex flex-row justify-between items-center p-4">
+        <img src="../static/imgs/logo-branca.png" class="w-20"/>
+        <div>
+          <ul class="flex flex-row gap-4">
+            <li><a href="/">Início</a></li>
+            <li><a href="/controle">Modo Manual</a></li>
+            <li><a href="/rastreamento">Rastreamento</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </header>
     <h1>Controle Manual do Telescópio</h1>
     <div class="controle-container">
         <button onclick="enviarComando('cima')">↑</button>
@@ -18,4 +76,4 @@
     </div>
     <script src="{{ url_for('static', filename='controle.js') }}"></script>
 </body>
-</html>
+</html> -->
