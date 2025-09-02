@@ -1,10 +1,7 @@
 #include <WebServer.h>
 #include <AccelStepper.h>
-#include <math.h> // lround
+#include <math.h> // llround
 
-// --- ACUMULADORES DE FRAÇÃO DE PASSO (para precisão ultra fina) ---
-static double accAzFrac  = 0.0;  // acumula frações de passo no AZ
-static double accAltFrac = 0.0;  // acumula frações de passo no ALT
 // ====== IMPORTA AS GLOBAIS DO main.cpp ======
 extern WebServer    server;
 extern AccelStepper motorAz;
@@ -16,61 +13,98 @@ extern float PASSOS_POR_GRAU_ALT;
 extern long ultimaMetaAzPassos;
 extern long ultimaMetaAltPassos;
 
+// Flag global (definida aqui, usada no main.cpp)
+volatile bool g_tracking = false;
 
-// ====== CONFIGURA A ROTA /mover ======
+// --- ACUMULADORES DE FRAÇÃO DE PASSO (para /mover em posição absoluta) ---
+static double accAzFrac  = 0.0;
+static double accAltFrac = 0.0;
+
+// ====== CONFIGURA ROTAS ======
 void configurarBuscarAstro() {
+  // --------- GoTo absoluto (usado só no início) ----------
   server.on("/mover", HTTP_GET, []() {
     if (!server.hasArg("az") || !server.hasArg("alt")) {
       server.send(400, "text/plain", "Parâmetros ausentes (az, alt)");
       return;
     }
 
-    // 1) Lê graus enviados pelo Python (Skyfield)
     const float grausAz  = server.arg("az").toFloat();
     const float grausAlt = server.arg("alt").toFloat();
 
-    // 2) Converte para passos absolutos (0° alinhado na partida)
-    // 2) Converte para passos absolutos com ACÚMULO DE FRAÇÃO (ultra fino)
-double stepsAzDesired  = (double)grausAz  * (double)PASSOS_POR_GRAU_AZ;
-double stepsAltDesired = (double)grausAlt * (double)PASSOS_POR_GRAU_ALT;
+    // Converte para passos (com acúmulo de fração -> ultra fino)
+    double stepsAzDesired  = (double)grausAz  * (double)PASSOS_POR_GRAU_AZ  + accAzFrac;
+    double stepsAltDesired = (double)grausAlt * (double)PASSOS_POR_GRAU_ALT + accAltFrac;
 
-// soma as sobras acumuladas de ciclos anteriores
-stepsAzDesired  += accAzFrac;
-stepsAltDesired += accAltFrac;
+    long alvoAzPassos  = (long)llround(stepsAzDesired);
+    long alvoAltPassos = (long)llround(stepsAltDesired);
 
-// arredonda para inteiro mais próximo
-long alvoAzPassos  = (long)llround(stepsAzDesired);
-long alvoAltPassos = (long)llround(stepsAltDesired);
+    accAzFrac  = stepsAzDesired  - (double)alvoAzPassos;
+    accAltFrac = stepsAltDesired - (double)alvoAltPassos;
 
-// atualiza as sobras (fração que “sobrou” após o arredondamento)
-accAzFrac  = stepsAzDesired  - (double)alvoAzPassos;   // faixa ~(-0.5 .. +0.5)
-accAltFrac = stepsAltDesired - (double)alvoAltPassos;
+    // Em GoTo, usamos controle de posição (run). Desliga tracking.
+    g_tracking = false;
 
+    if (labs(alvoAzPassos  - motorAz.targetPosition())  >= 1) motorAz.moveTo(alvoAzPassos);
+    if (labs(alvoAltPassos - motorAlt.targetPosition()) >= 1) motorAlt.moveTo(alvoAltPassos);
 
-    // 3) Move para a meta absoluta (AccelStepper cuida do trajeto)
-    if (alvoAzPassos != motorAz.targetPosition())
-        motorAz.moveTo(alvoAzPassos);
-
-    if (alvoAltPassos != motorAlt.targetPosition())
-        motorAlt.moveTo(alvoAltPassos);
-
-
-    // 4) Guarda última meta (útil pra debug)
     ultimaMetaAzPassos  = alvoAzPassos;
     ultimaMetaAltPassos = alvoAltPassos;
 
-    // 5) Log e resposta
-    String msg = "Movendo para AZ: " + String(grausAz, 3) + "° (" + String(alvoAzPassos) +
+    String msg = "GoTo AZ: " + String(grausAz, 3) + "° (" + String(alvoAzPassos) +
                  " passos), ALT: " + String(grausAlt, 3) + "° (" + String(alvoAltPassos) + " passos)";
     Serial.println("[/mover] " + msg);
     server.send(200, "text/plain", msg);
   });
 
-  // (Opcional) Rota de saúde
-  server.on("/ping", HTTP_GET, []() {
-    server.send(200, "text/plain", "pong");
+  // --------- Seguimento por VELOCIDADE contínua ----------
+  // Recebe velocidades em deg/s e ativa modo runSpeed()
+  server.on("/set_speed", HTTP_GET, []() {
+    if (!server.hasArg("vaz") || !server.hasArg("valt")) {
+      server.send(400, "text/plain", "Parâmetros ausentes (vaz, valt) em deg/s");
+      return;
+    }
+
+    const float vAz_deg_s  = server.arg("vaz").toFloat();   // deg/s
+    const float vAlt_deg_s = server.arg("valt").toFloat();  // deg/s
+
+    if (isnan(vAz_deg_s) || isnan(vAlt_deg_s)) {
+      server.send(400, "text/plain", "vaz/valt invalidos");
+      return;
+    }
+
+    // Converte deg/s -> passos/s
+    const float vAz_steps_s  = vAz_deg_s  * PASSOS_POR_GRAU_AZ;
+    const float vAlt_steps_s = vAlt_deg_s * PASSOS_POR_GRAU_ALT;
+
+    // Ativa modo tracking por velocidade
+    g_tracking = true;
+
+    // Zera metas de posição (evita “puxões” residuais)
+    motorAz.moveTo(motorAz.currentPosition());
+    motorAlt.moveTo(motorAlt.currentPosition());
+
+    motorAz.setSpeed(vAz_steps_s);
+    motorAlt.setSpeed(vAlt_steps_s);
+
+    String msg = "speed AZ=" + String(vAz_deg_s, 6) + " deg/s (" + String(vAz_steps_s, 3) + " sps), "
+                 "ALT=" + String(vAlt_deg_s, 6) + " deg/s (" + String(vAlt_steps_s, 3) + " sps)";
+    Serial.println("[/set_speed] " + msg);
+    server.send(200, "text/plain", msg);
   });
+
+  // (Opcional) Pausa o tracking (zera speed)
+  server.on("/track_off", HTTP_GET, []() {
+    g_tracking = false;
+    motorAz.setSpeed(0);
+    motorAlt.setSpeed(0);
+    server.send(200, "text/plain", "tracking off");
+  });
+
+  // Saúde
+  server.on("/ping", HTTP_GET, []() { server.send(200, "text/plain", "pong"); });
 }
+
 
 
 //Versão boa 02

@@ -23,18 +23,14 @@
     </nav>
   </header>
     <h1>Controle Manual do Telescópio</h1>
-    <div class="controle-container">
-        <button onclick="enviarComando('cima')">↑</button>
-        <div class="botoes-meio">
-            <button onclick="enviarComando('esquerda')">←</button>
-            <button onclick="enviarComando('parar')">⏹</button>
-            <button onclick="enviarComando('direita')">→</button>
-        </div>
-        <button onclick="enviarComando('baixo')">↓</button>
+    <div id="controleManual">
+        <button id="btnUp">↑ Cima</button>
+        <button id="btnDown">↓ Baixo</button>
+        <button id="btnLeft">← Esquerda</button>
+        <button id="btnRight">→ Direita</button>
     </div>
 
-    <!-- Coloque o JS aqui, antes do fechamento do body -->
-    <script src="{{ url_for('static', filename='controle.js') }}"></script>
+    <script src="{{ url_for('static', filename='controle_manual.js') }}"></script>
 </body>
 </html>
 

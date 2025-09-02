@@ -3,29 +3,29 @@
 #include <WebServer.h>
 
 // =================== AJUSTES DO SEU HARDWARE ===================
-#define DIR_AZ   17
-#define STEP_AZ  16
-#define DIR_ALT  19
+#define DIR_AZ 17
+#define STEP_AZ 16
+#define DIR_ALT 19
 #define STEP_ALT 18
 
 // =================== PARÂMETROS MECÂNICOS ===================
 // Motor NEMA17: 200 passos "cheios" por volta
-static const int   STEPS_PER_REV  = 200;
+static const int STEPS_PER_REV = 200;
 // A4988 em 1/16 (MS1, MS2, MS3 em HIGH)
-static const int   MICROSTEPPING  = 16;
+static const int MICROSTEPPING = 16;
 
 // Relações mecânicas por eixo (polia/coroa)
 // AZ: motor 16 dentes, coroa ~178 dentes => 178/16 = 11.125
 // ALT: motor 16 dentes, coroa 112 dentes => 112/16 = 7.0
-static const float GEAR_RATIO_AZ  = 11.125f;
+static const float GEAR_RATIO_AZ = 11.125f;
 static const float GEAR_RATIO_ALT = 7.0f;
 
 // passos por grau = (passos por volta * microstepping * relação) / 360
-float PASSOS_POR_GRAU_AZ  = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_AZ)  / 360.0f; // ≈ 98.8889
+float PASSOS_POR_GRAU_AZ = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_AZ) / 360.0f;   // ≈ 98.8889
 float PASSOS_POR_GRAU_ALT = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_ALT) / 360.0f; // ≈ 62.2222
 
 // =================== GLOBAIS VISÍVEIS EM OUTROS ARQUIVOS ===================
-long ultimaMetaAzPassos  = 0;
+long ultimaMetaAzPassos = 0;
 long ultimaMetaAltPassos = 0;
 
 // Motores e servidor (exportados via extern no buscarAstro.cpp)
@@ -35,13 +35,62 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-const char* ssid = "BRUP_MJV_2G";
-const char* password = "12345678";
+const char *ssid = "BRUP_MJV_2G";
+const char *password = "12345678";
 
 // Declarar a função que configura as rotas no outro arquivo
 void configurarBuscarAstro();
+void configurarRotas();
 
-void setup() {
+// ===== Flag vinda do buscarAstro.cpp (modo tracking por velocidade) =====
+extern volatile bool g_tracking;
+
+// Funções para mover os motores manualmente
+void moverDireita()
+{
+  motorAz.moveTo(motorAz.currentPosition() + 100); // Move para direita
+}
+
+void moverEsquerda()
+{
+  motorAz.moveTo(motorAz.currentPosition() - 100); // Move para esquerda
+}
+
+void moverCima()
+{
+  motorAlt.moveTo(motorAlt.currentPosition() + 100); // Move para cima
+}
+
+void moverBaixo()
+{
+  motorAlt.moveTo(motorAlt.currentPosition() - 100); // Move para baixo
+}
+
+
+// Função para configurar as rotas no servidor
+void configurarRotas() {
+  server.on("/mover", HTTP_GET, []() {
+    String comando = server.arg("comando");
+
+    if (comando == "direita") {
+      moverDireita();  // Move para a direita
+    } else if (comando == "esquerda") {
+      moverEsquerda(); // Move para a esquerda
+    } else if (comando == "cima") {
+      moverCima();     // Move para cima
+    } else if (comando == "baixo") {
+      moverBaixo();    // Move para baixo
+    }
+
+    server.send(200, "application/json", "{\"status\": \"movimento realizado\", \"comando\": \"" + comando + "\"}");
+  });
+}
+
+
+
+
+void setup()
+{
   Serial.begin(115200);
   Serial.println();
   Serial.println("[BOOT] Iniciando ESP32...");
@@ -52,46 +101,74 @@ void setup() {
   WiFi.begin(ssid, password);
 
   int tentativas = 0;
-  while (WiFi.status() != WL_CONNECTED && tentativas < 30) {
+  while (WiFi.status() != WL_CONNECTED && tentativas < 30)
+  {
     delay(500);
     Serial.print(".");
     tentativas++;
   }
   Serial.println();
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Serial.println("[WIFI] Conectado!");
     Serial.print("[WIFI] IP: ");
     Serial.println(WiFi.localIP());
-  } else {
+  }
+  else
+  {
     Serial.println("[WIFI][ERRO] Não conectou. Verifique SSID/senha.");
-    // Você pode seguir sem Wi-Fi se quiser, mas a rota HTTP não vai responder.
+    // Dá pra seguir sem Wi-Fi, mas a rota HTTP não vai responder.
   }
 
   // ----- Motores -----
-  motorAz.setMaxSpeed(1200);     // ajuste fino depois
-  motorAz.setAcceleration(600);  // ajuste fino depois
+  motorAz.setMaxSpeed(1200);    // ajuste fino depois, manter ≥ velocidade máxima que usará
+  motorAz.setAcceleration(600); // ajuste fino depois
 
   motorAlt.setMaxSpeed(1200);
   motorAlt.setAcceleration(600);
 
-  // Direções (mantive como você tinha, pois relatou que a direção estava correta)
-  // (dirInvert, stepInvert)
-  motorAz.setPinsInverted(true,  false);
+  // Direções (mantive como você tinha)
+  motorAz.setPinsInverted(true, false);
   motorAlt.setPinsInverted(false, false);
 
   motorAz.setCurrentPosition(0);
   motorAlt.setCurrentPosition(0);
 
   // ----- HTTP -----
-  configurarBuscarAstro();   // define a rota /mover lá no buscarAstro.cpp
+  configurarRotas(); // Chama a função para configurar as rotas de movimento
+  Serial.println("[HTTP] Servidor iniciado. Rotas:");
+  Serial.println("  GET /mover?comando=direita  (direita)");
+  Serial.println("  GET /mover?comando=esquerda (esquerda)");
+  Serial.println("  GET /mover?comando=cima     (cima)");
+  Serial.println("  GET /mover?comando=baixo    (baixo)");
+
+  // ----- HTTP -----
+  configurarBuscarAstro(); // define as rotas /mover, /set_speed, etc.
+  Serial.println("[HTTP] Servidor iniciado. Rotas:");
+  Serial.println("  GET /mover?az=GRAUS&alt=GRAUS   (GoTo absoluto)");
+  Serial.println("  GET /set_speed?vaz=DEGS&valt=DEGS  (seguimento por velocidade)");
+  Serial.println("  GET /track_off (pausa tracking)");
   server.begin();
-  Serial.println("[HTTP] Servidor iniciado. Rota: GET /mover?az=GRAUS&alt=GRAUS");
 }
 
-void loop() {
+void loop()
+{
   server.handleClient();
-  motorAz.run();   // mantém o movimento até atingir moveTo
-  motorAlt.run();
+
+  if (g_tracking)
+  {
+    // ===== Seguimento por velocidade contínua =====
+    // Velocidades são definidas pela rota /set_speed (deg/s → passos/s)
+    motorAz.runSpeed();
+    motorAlt.runSpeed();
+  }
+  else
+  {
+    // ===== GoTo/posicional =====
+    // Caminha até a meta definida por /mover
+    motorAz.run();
+    motorAlt.run();
+  }
 }
 
 //-------------------------------------
@@ -192,9 +269,6 @@ void loop() {
 //   motorAz.run();   // mantém o movimento até atingir moveTo
 //   motorAlt.run();
 // }
-
-
-
 
 // Versão boa 01
 // #include <WiFi.h>
@@ -306,7 +380,6 @@ void loop() {
 // const char* ssid     = "PEDRO HENRIQUE";
 // const char* password = "20240204";
 
-
 // void configurarBuscarAstro();
 
 // void setup() {
@@ -363,8 +436,6 @@ void loop() {
 //   // Nada bloqueante aqui. Adicionaremos timers/rotas nos próximos passos.
 // }
 
-
-
 // #include <WiFi.h>
 // #include <AccelStepper.h>
 // #include <WebServer.h>
@@ -380,7 +451,6 @@ void loop() {
 // #define STEP_AZ 16
 // #define DIR_ALT 19
 // #define STEP_ALT 18
-
 
 // AccelStepper motorAz(AccelStepper::DRIVER, STEP_AZ, DIR_AZ);
 // AccelStepper motorAlt(AccelStepper::DRIVER, STEP_ALT, DIR_ALT);
@@ -401,7 +471,7 @@ void loop() {
 //     delay(500);
 //     Serial.print(".");
 //     attempts++;
-    
+
 //     // Limita o número de tentativas de conexão (para evitar loop infinito)
 //     if (attempts > 20) {
 //       Serial.println("\n[ERRO] Não foi possível conectar ao Wi-Fi.");
@@ -461,8 +531,6 @@ void loop() {
 //   motorAlt.run(); // Mover o motor de altitude
 // }
 
-
-
 // #include <WiFi.h>
 // #include <AccelStepper.h>
 // #include <WebServer.h>
@@ -494,7 +562,7 @@ void loop() {
 //     delay(500);
 //     Serial.print(".");
 //     attempts++;
-    
+
 //     // Limita o número de tentativas de conexão (para evitar loop infinito)
 //     if (attempts > 20) {
 //       Serial.println("\n[ERRO] Não foi possível conectar ao Wi-Fi.");
@@ -551,8 +619,6 @@ void loop() {
 //   motorAlt.run(); // Mover o motor de altitude
 // }
 
-
-
 // #include <WiFi.h>
 // #include <AccelStepper.h>
 // #include <WebServer.h>
@@ -584,7 +650,7 @@ void loop() {
 //     delay(500);
 //     Serial.print(".");
 //     attempts++;
-    
+
 //     // Limita o número de tentativas de conexão (para evitar loop infinito)
 //     if (attempts > 20) {
 //       Serial.println("\n[ERRO] Não foi possível conectar ao Wi-Fi.");
