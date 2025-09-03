@@ -33,7 +33,7 @@ def buscar():
         return jsonify({"erro": f'Astro "{nome}" não encontrado.'}), 404
     az, alt = resultado
     return jsonify({"astro": nome.capitalize(), "az": az, "alt": alt})
-
+ 
 # Seguir continuamente (GoTo + velocidade contínua com compensação)
 @app.route("/seguir", methods=["POST", "GET"])
 def seguir():
