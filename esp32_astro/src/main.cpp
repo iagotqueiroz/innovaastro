@@ -35,8 +35,8 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-const char *ssid = "ALOISIO_1035498_2Ghz";
-const char *password = "Alo@2023";
+const char *ssid = "Hotel Mattes Wifi";
+const char *password = "mattes.80";
 
 // Declarar a função que configura as rotas no outro arquivo
 void configurarBuscarAstro();
