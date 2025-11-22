@@ -3,8 +3,8 @@
 #include <WebServer.h>
 
 // =================== AJUSTES DO SEU HARDWARE ===================
-#define DIR_AZ 17
-#define STEP_AZ 16
+#define DIR_AZ 26
+#define STEP_AZ 25
 #define DIR_ALT 19
 #define STEP_ALT 18
 
@@ -35,8 +35,8 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-const char *ssid = "Hotel Mattes Wifi";
-const char *password = "mattes.80";
+const char *ssid = "BRUP_MJV_2G";
+const char *password = "12345678";
 
 // Declarar a função que configura as rotas no outro arquivo
 void configurarBuscarAstro();
