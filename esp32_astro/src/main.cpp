@@ -69,8 +69,10 @@ void moverBaixo()
 
 // Função para configurar as rotas no servidor
 void configurarRotas() {
-  server.on("/mover", HTTP_GET, []() {
+  server.on("/controle", HTTP_GET, []() {
     String comando = server.arg("comando");
+
+    g_tracking = false;
 
     if (comando == "direita") {
       moverDireita();  // Move para a direita
@@ -137,10 +139,10 @@ void setup()
   // ----- HTTP -----
   configurarRotas(); // Chama a função para configurar as rotas de movimento
   Serial.println("[HTTP] Servidor iniciado. Rotas:");
-  Serial.println("  GET /mover?comando=direita  (direita)");
-  Serial.println("  GET /mover?comando=esquerda (esquerda)");
-  Serial.println("  GET /mover?comando=cima     (cima)");
-  Serial.println("  GET /mover?comando=baixo    (baixo)");
+  Serial.println("  GET /controle?comando=direita  (direita)");
+  Serial.println("  GET /controle?comando=esquerda (esquerda)");
+  Serial.println("  GET /controle?comando=cima     (cima)");
+  Serial.println("  GET /controle?comando=baixo    (baixo)");
 
   // ----- HTTP -----
   configurarBuscarAstro(); // define as rotas /mover, /set_speed, etc.
