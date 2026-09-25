@@ -103,6 +103,42 @@ void configurarBuscarAstro() {
 
   // Saúde
   server.on("/ping", HTTP_GET, []() { server.send(200, "text/plain", "pong"); });
+
+  server.on("/motion_status", HTTP_GET, []() {
+
+  long atualAz = motorAz.currentPosition();
+  long atualAlt = motorAlt.currentPosition();
+
+  long alvoAz = motorAz.targetPosition();
+  long alvoAlt = motorAlt.targetPosition();
+
+  long distanciaAz = motorAz.distanceToGo();
+  long distanciaAlt = motorAlt.distanceToGo();
+
+  float azGraus = atualAz / PASSOS_POR_GRAU_AZ;
+  float altGraus = atualAlt / PASSOS_POR_GRAU_ALT;
+
+  String json = "{";
+
+  json += "\"currentAz\":" + String(atualAz) + ",";
+  json += "\"currentAlt\":" + String(atualAlt) + ",";
+
+  json += "\"targetAz\":" + String(alvoAz) + ",";
+  json += "\"targetAlt\":" + String(alvoAlt) + ",";
+
+  json += "\"distanceAz\":" + String(distanciaAz) + ",";
+  json += "\"distanceAlt\":" + String(distanciaAlt) + ",";
+
+  json += "\"azDeg\":" + String(azGraus, 6) + ",";
+  json += "\"altDeg\":" + String(altGraus, 6) + ",";
+
+  json += "\"tracking\":";
+  json += g_tracking ? "true" : "false";
+
+  json += "}";
+
+  server.send(200, "application/json", json);
+});
 }
 
 

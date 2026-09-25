@@ -26,7 +26,7 @@ SEGUIMENTO_CFG = {
     "rate_refresh_s": 1.0, # reestima velocidade a cada 1 s
     "rate_dt_s": 1.0,      # janela para estimar dθ/dt
     "max_rate_deg_s": 2.0, # trava de segurança (deg/s)
-    "p_correction": 0.35,  # correção proporcional lenta (anti-drift)
+    "p_correction": 0.0,  # correção proporcional lenta (anti-drift)
     # compensação de atraso (lead time)
     # estime aqui sua velocidade de “slew” típica em deg/s (por eixo)
     "slew_deg_s_az": 8.0,  # ajuste ao seu conjunto
@@ -140,7 +140,7 @@ def _tracking_loop(lat, lon, target_name, _interval_unused: int):
                 new_rate_alt = new_rate_alt + p_corr * (err_alt / max(rate_refresh_s, 1e-6))
 
                 # === AQUI entra o boost de teste ===
-                boost = 5.0  # aumenta 5x a velocidade (só pra ver o motor girar)
+                boost = 1.0  # aumenta 5x a velocidade (só pra ver o motor girar)
                 new_rate_az  *= boost
                 new_rate_alt *= boost
 
