@@ -39,9 +39,40 @@ function buscarAstro() {
         ultimoAlt = data.alt;
 
         // Inicia o rastreamento (se necessário)
-        iniciarRastreamento();
+        iniciarRastreamento(nomeAstro, latitude, longitude);
     })
     .catch(error => {
         console.error("Erro ao buscar astro:", error);
+    });
+}
+
+
+function iniciarRastreamento(nomeAstro, latitude, longitude) {
+    console.log("[RASTREAMENTO] Iniciando:", nomeAstro, latitude, longitude);
+
+    fetch('/seguir', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            nome: nomeAstro,
+            latitude: latitude,
+            longitude: longitude
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("[RASTREAMENTO] Resposta:", data);
+
+        if (!data.ok) {
+            console.error("[RASTREAMENTO] Falha:", data.msg);
+            return;
+        }
+
+        console.log("[RASTREAMENTO] Seguimento contínuo ativo.");
+    })
+    .catch(error => {
+        console.error("[RASTREAMENTO] Erro ao iniciar:", error);
     });
 }
