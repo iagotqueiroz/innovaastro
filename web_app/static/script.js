@@ -76,3 +76,17 @@ function iniciarRastreamento(nomeAstro, latitude, longitude) {
         console.error("[RASTREAMENTO] Erro ao iniciar:", error);
     });
 }
+
+
+function pararTudo() {
+    fetch('/parar', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("[STOP]", data);
+    })
+    .catch(error => {
+        console.error("[STOP] Erro:", error);
+    });
+}

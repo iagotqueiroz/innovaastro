@@ -101,6 +101,25 @@ void configurarBuscarAstro() {
     server.send(200, "text/plain", "tracking off");
   });
 
+  server.on("/stop", HTTP_GET, []() {
+
+    // Sai imediatamente do modo tracking
+    g_tracking = false;
+
+    // Zera velocidades do runSpeed()
+    motorAz.setSpeed(0);
+    motorAlt.setSpeed(0);
+
+    // Cancela qualquer GoTo pendente
+    motorAz.moveTo(motorAz.currentPosition());
+    motorAlt.moveTo(motorAlt.currentPosition());
+
+    Serial.println("[STOP] Movimento interrompido.");
+
+    server.send(200, "application/json",
+                "{\"ok\":true,\"status\":\"stopped\"}");
+  });
+
   // Saúde
   server.on("/ping", HTTP_GET, []() { server.send(200, "text/plain", "pong"); });
 

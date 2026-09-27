@@ -3,10 +3,10 @@
 #include <WebServer.h>
 
 // =================== AJUSTES DO SEU HARDWARE ===================
-#define DIR_AZ 26
-#define STEP_AZ 25
-#define DIR_ALT 19
-#define STEP_ALT 18
+#define DIR_AZ 19
+#define STEP_AZ 18
+#define DIR_ALT 26
+#define STEP_ALT 25
 
 // =================== PARÂMETROS MECÂNICOS ===================
 // Motor NEMA17: 200 passos "cheios" por volta
@@ -35,8 +35,11 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-const char *ssid = "BRUP_MJV_2G";
-const char *password = "12345678";
+// const char *ssid = "BRUP_MJV_2G";
+// const char *password = "12345678";
+
+const char *ssid = "Queiroz 2.4ghz";
+const char *password = "igdigital3362";
 
 // Declarar a função que configura as rotas no outro arquivo
 void configurarBuscarAstro();

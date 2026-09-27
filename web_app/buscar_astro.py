@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from config import ESP32_IP
 import requests
 import threading
+import time
 
 # === Efemérides (carrega 1x) ===
 eph = load("de421.bsp")
@@ -189,6 +190,38 @@ def _lead_time_seconds(az_now, alt_now, az_target, alt_target):
     t_alt = d_alt / max(SEGUIMENTO_CFG["slew_deg_s_alt"], 0.1)
     return max(t_az, t_alt) + float(SEGUIMENTO_CFG["extra_net_delay_s"])
 
+
+def _aguardar_goto(timeout_s=120.0, poll_s=0.2):
+    inicio = time.monotonic()
+
+    print("[GOTO] Aguardando telescópio chegar ao alvo...")
+
+    while time.monotonic() - inicio < timeout_s:
+
+        try:
+            response = requests.get(
+                f"http://{ESP32_IP}/motion_status",
+                timeout=1.0
+            )
+
+            status = response.json()
+
+            distancia_az = abs(int(status["distanceAz"]))
+            distancia_alt = abs(int(status["distanceAlt"]))
+
+            if distancia_az <= 1 and distancia_alt <= 1:
+                print("[GOTO] Alvo alcançado.")
+                return True
+
+        except Exception as e:
+            print(f"[GOTO] Erro lendo posição: {e}")
+
+        time.sleep(poll_s)
+
+    print("[GOTO] Timeout aguardando chegada.")
+    return False
+
+
 def iniciar_seguimento(lat: float, lon: float, astro: str, interval: int = 3,
                        gain: float = 1.0, min_step: float = 0.12, max_step: float = 0.5):
     """GoTo com previsão de atraso + sobe thread de seguimento por velocidade."""
@@ -259,6 +292,10 @@ def iniciar_seguimento(lat: float, lon: float, astro: str, interval: int = 3,
     except Exception as e:
         return False, f"Falha no GoTo inicial: {e}"
 
+    # Não iniciar tracking enquanto o GoTo ainda estiver acontecendo
+    if not _aguardar_goto():
+        return False, "Timeout: telescópio não chegou ao alvo."
+
     # === Thread do seguimento por velocidade ===
     _track_thread = threading.Thread(
         target=_tracking_loop, args=(lat, lon, astro, int(interval)), daemon=True
@@ -270,13 +307,52 @@ def iniciar_seguimento(lat: float, lon: float, astro: str, interval: int = 3,
         f"rate_dt={SEGUIMENTO_CFG['rate_dt_s']}s, p_corr={SEGUIMENTO_CFG['p_correction']}."
     )
 
+
 def parar_seguimento():
     global _track_thread, _stop_event, _track_state
+
     _stop_event.set()
+
     if _track_thread and _track_thread.is_alive():
         _track_thread.join(timeout=0.8)
+
     _track_state["running"] = False
-    return True, "Seguimento parado."
+
+    try:
+        response = requests.get(
+            f"http://{ESP32_IP}/stop",
+            timeout=1.5
+        )
+
+        print("[STOP] ESP32:", response.text)
+
+    except Exception as e:
+        print(f"[STOP] Falha ao parar ESP32: {e}")
+        return False, f"Falha ao parar ESP32: {e}"
+
+    return True, "Movimento parado."
+
+# def parar_seguimento():
+#     global _track_thread, _stop_event, _track_state
+#     _stop_event.set()
+#     if _track_thread and _track_thread.is_alive():
+#         _track_thread.join(timeout=0.8)
+#     _track_state["running"] = False
+#     try:
+#         requests.get(
+#             f"http://{ESP32_IP}/track_off",
+#             timeout=1.5
+#         )
+#         print("[TRACKING] ESP32 saiu do modo tracking.")
+#     except Exception as e:
+#         print(f"[TRACKING] Falha ao enviar track_off: {e}")
+
+
+    
+#     return True, "Seguimento parado."
+
+
+
 
 def status_seguimento():
     return dict(_track_state)
