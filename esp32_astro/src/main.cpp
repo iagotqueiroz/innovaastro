@@ -8,6 +8,8 @@
 #define DIR_ALT 26
 #define STEP_ALT 25
 
+#define AZ_LIMIT_PIN 32
+
 // =================== PARÂMETROS MECÂNICOS ===================
 // Motor NEMA17: 200 passos "cheios" por volta
 static const int STEPS_PER_REV = 200;
@@ -89,6 +91,26 @@ void configurarRotas() {
 
     server.send(200, "application/json", "{\"status\": \"movimento realizado\", \"comando\": \"" + comando + "\"}");
   });
+
+    server.on("/limit_az", HTTP_GET, []() {
+
+    int raw = digitalRead(AZ_LIMIT_PIN);
+    bool acionado = (raw == LOW);
+
+    if (acionado) {
+      server.send(
+        200,
+        "application/json",
+        "{\"acionado\":true,\"raw\":0,\"estado\":\"ACIONADO\"}"
+      );
+    } else {
+      server.send(
+        200,
+        "application/json",
+        "{\"acionado\":false,\"raw\":1,\"estado\":\"LIVRE\"}"
+      );
+    }
+  });
 }
 
 
@@ -99,6 +121,8 @@ void setup()
   Serial.begin(115200);
   Serial.println();
   Serial.println("[BOOT] Iniciando ESP32...");
+
+  pinMode(AZ_LIMIT_PIN, INPUT_PULLUP);
 
   // ----- Wi-Fi -----
   Serial.printf("[WIFI] Conectando a \"%s\" ...\n", ssid);
