@@ -12,13 +12,13 @@
 // Motor NEMA17: 200 passos "cheios" por volta
 static const int STEPS_PER_REV = 200;
 // A4988 em 1/16 (MS1, MS2, MS3 em HIGH)
-static const int MICROSTEPPING = 16;
+static const int MICROSTEPPING = 1;
 
 // Relações mecânicas por eixo (polia/coroa)
 // AZ: motor 16 dentes, coroa ~178 dentes => 178/16 = 11.125
 // ALT: motor 16 dentes, coroa 112 dentes => 112/16 = 7.0
-static const float GEAR_RATIO_AZ = 11.125f;
-static const float GEAR_RATIO_ALT = 7.0f;
+static const float GEAR_RATIO_AZ = 24.0f;
+static const float GEAR_RATIO_ALT = 15.0f;
 
 // passos por grau = (passos por volta * microstepping * relação) / 360
 float PASSOS_POR_GRAU_AZ = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_AZ) / 360.0f;   // ≈ 98.8889
@@ -35,11 +35,11 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-// const char *ssid = "BRUP_MJV_2G";
-// const char *password = "12345678";
+const char *ssid = "BRUP_MJV_2G";
+const char *password = "12345678";
 
-const char *ssid = "Queiroz 2.4ghz";
-const char *password = "igdigital3362";
+// const char *ssid = "Queiroz 2.4ghz";
+// const char *password = "igdigital3362";
 
 // Declarar a função que configura as rotas no outro arquivo
 void configurarBuscarAstro();
@@ -126,11 +126,11 @@ void setup()
   }
 
   // ----- Motores -----
-  motorAz.setMaxSpeed(1200);    // ajuste fino depois, manter ≥ velocidade máxima que usará
-  motorAz.setAcceleration(600); // ajuste fino depois
+  motorAz.setMaxSpeed(200);    // ajuste fino depois, manter ≥ velocidade máxima que usará
+  motorAz.setAcceleration(100); // ajuste fino depois
 
-  motorAlt.setMaxSpeed(1200);
-  motorAlt.setAcceleration(600);
+  motorAlt.setMaxSpeed(200);
+  motorAlt.setAcceleration(100);
 
   // Direções (mantive como você tinha)
   motorAz.setPinsInverted(true, false);
