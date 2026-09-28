@@ -3,10 +3,10 @@
 #include <WebServer.h>
 
 // =================== AJUSTES DO SEU HARDWARE ===================
-#define DIR_AZ 19
-#define STEP_AZ 18
-#define DIR_ALT 26
-#define STEP_ALT 25
+#define DIR_AZ 26
+#define STEP_AZ 25
+#define DIR_ALT 19
+#define STEP_ALT 18
 
 #define AZ_LIMIT_PIN 32
 
@@ -50,6 +50,12 @@ void configurarRotas();
 // ===== Flag vinda do buscarAstro.cpp (modo tracking por velocidade) =====
 extern volatile bool g_tracking;
 
+volatile bool g_homingAz = false;
+
+const float HOME_AZ_SPEED = -50.0;
+unsigned long homeAzInicio = 0;
+const unsigned long HOME_AZ_TIMEOUT = 15000;
+
 // Funções para mover os motores manualmente
 void moverDireita()
 {
@@ -71,10 +77,11 @@ void moverBaixo()
   motorAlt.moveTo(motorAlt.currentPosition() - 100); // Move para baixo
 }
 
-
 // Função para configurar as rotas no servidor
-void configurarRotas() {
-  server.on("/controle", HTTP_GET, []() {
+void configurarRotas()
+{
+  server.on("/controle", HTTP_GET, []()
+            {
     String comando = server.arg("comando");
 
     g_tracking = false;
@@ -89,10 +96,10 @@ void configurarRotas() {
       moverBaixo();    // Move para baixo
     }
 
-    server.send(200, "application/json", "{\"status\": \"movimento realizado\", \"comando\": \"" + comando + "\"}");
-  });
+    server.send(200, "application/json", "{\"status\": \"movimento realizado\", \"comando\": \"" + comando + "\"}"); });
 
-    server.on("/limit_az", HTTP_GET, []() {
+  server.on("/limit_az", HTTP_GET, []()
+            {
 
     int raw = digitalRead(AZ_LIMIT_PIN);
     bool acionado = (raw == LOW);
@@ -109,12 +116,49 @@ void configurarRotas() {
         "application/json",
         "{\"acionado\":false,\"raw\":1,\"estado\":\"LIVRE\"}"
       );
+    } });
+
+  server.on("/home_az", HTTP_GET, []()
+            {
+
+    // Desliga tracking
+    g_tracking = false;
+
+    // Se o switch já estiver pressionado
+    if (digitalRead(AZ_LIMIT_PIN) == LOW) {
+
+      motorAz.setSpeed(0);
+      motorAz.setCurrentPosition(0);
+      motorAz.moveTo(0);
+
+      g_homingAz = false;
+
+      server.send(
+        200,
+        "application/json",
+        "{\"ok\":true,\"status\":\"AZ já estava no HOME\",\"az\":0}"
+      );
+
+      return;
     }
-  });
+
+    // Cancela qualquer movimento anterior
+    motorAz.moveTo(motorAz.currentPosition());
+
+    // Velocidade do homing
+    motorAz.setSpeed(HOME_AZ_SPEED);
+
+    homeAzInicio = millis();
+    g_homingAz = true;
+
+    Serial.println("[HOME AZ] Iniciado.");
+
+    server.send(
+      200,
+      "application/json",
+      "{\"ok\":true,\"status\":\"HOME AZ iniciado\"}"
+    ); });
 }
-
-
-
 
 void setup()
 {
@@ -150,7 +194,7 @@ void setup()
   }
 
   // ----- Motores -----
-  motorAz.setMaxSpeed(200);    // ajuste fino depois, manter ≥ velocidade máxima que usará
+  motorAz.setMaxSpeed(200);     // ajuste fino depois, manter ≥ velocidade máxima que usará
   motorAz.setAcceleration(100); // ajuste fino depois
 
   motorAlt.setMaxSpeed(200);
@@ -184,17 +228,44 @@ void loop()
 {
   server.handleClient();
 
-  if (g_tracking)
+  if (g_homingAz)
   {
-    // ===== Seguimento por velocidade contínua =====
-    // Velocidades são definidas pela rota /set_speed (deg/s → passos/s)
+    // Switch encontrado
+    if (digitalRead(AZ_LIMIT_PIN) == LOW)
+    {
+      motorAz.setSpeed(0);
+
+      g_homingAz = false;
+
+      motorAz.setCurrentPosition(0);
+      motorAz.moveTo(0);
+
+      Serial.println("[HOME AZ] Switch acionado. AZ = 0.");
+    }
+
+    // Segurança: timeout
+    else if (millis() - homeAzInicio > HOME_AZ_TIMEOUT)
+    {
+      motorAz.setSpeed(0);
+      motorAz.moveTo(motorAz.currentPosition());
+
+      g_homingAz = false;
+
+      Serial.println("[HOME AZ][ERRO] Timeout.");
+    }
+
+    else
+    {
+      motorAz.runSpeed();
+    }
+  }
+  else if (g_tracking)
+  {
     motorAz.runSpeed();
     motorAlt.runSpeed();
   }
   else
   {
-    // ===== GoTo/posicional =====
-    // Caminha até a meta definida por /mover
     motorAz.run();
     motorAlt.run();
   }
