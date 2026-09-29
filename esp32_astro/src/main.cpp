@@ -17,11 +17,24 @@ static const int STEPS_PER_REV = 200;
 // A4988 em 1/16 (MS1, MS2, MS3 em HIGH)
 static const int MICROSTEPPING = 1;
 
+// ===== MODO DE TESTE =====
+// true  = motores sem redução, teste de bancada
+// false = montagem real com polias
+static const bool BENCH_MODE = true;
+
 // Relações mecânicas por eixo (polia/coroa)
 // AZ: motor 16 dentes, coroa ~178 dentes => 178/16 = 11.125
 // ALT: motor 16 dentes, coroa 112 dentes => 112/16 = 7.0
-static const float GEAR_RATIO_AZ = 24.0f;
-static const float GEAR_RATIO_ALT = 15.0f;
+static const float GEAR_RATIO_AZ_REAL = 24.0f;
+static const float GEAR_RATIO_ALT_REAL = 15.0f;
+
+static const float GEAR_RATIO_AZ =
+    BENCH_MODE ? 1.0f : GEAR_RATIO_AZ_REAL;
+
+static const float GEAR_RATIO_ALT =
+    BENCH_MODE ? 1.0f : GEAR_RATIO_ALT_REAL;
+
+
 
 // passos por grau = (passos por volta * microstepping * relação) / 360
 float PASSOS_POR_GRAU_AZ = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_AZ) / 360.0f;   // ≈ 98.8889
