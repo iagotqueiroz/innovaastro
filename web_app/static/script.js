@@ -20,7 +20,15 @@ function buscarAstro() {
             longitude: longitude
         })
     })
-    .then(response => response.json())
+    .then(async response => {
+        const data = await response.json();
+
+        if (!response.ok || data.ok === false) {
+            throw data;
+        }
+
+        return data;
+    })
     .then(data => {
         btnBuscar.textContent = 'Buscar';
         // document.getElementById("latitude").value = "";
@@ -42,7 +50,29 @@ function buscarAstro() {
         iniciarRastreamento(nomeAstro, latitude, longitude);
     })
     .catch(error => {
+        btnBuscar.textContent = 'Buscar';
+
         console.error("Erro ao buscar astro:", error);
+
+        if (error.alt !== undefined) {
+
+            resultado.innerHTML = `
+            <div class="flex flex-col gap-2 p-4 bg-gray-50 border border-gray-200 mt-4">
+                <div><strong>Movimento bloqueado por segurança</strong></div>
+                <div>${error.erro}</div>
+                <div>Azimute: ${error.az.toFixed(2)}°</div>
+                <div>Altitude: ${error.alt.toFixed(2)}°</div>
+            </div>
+            `;
+
+        } else {
+
+            resultado.innerHTML = `
+                <div class="p-4 mt-4">
+                    Erro: ${error.erro || "Não foi possível buscar o astro."}
+                </div>
+            `;
+        }
     });
 }
 

@@ -35,10 +35,28 @@ def buscar():
     lat = float(data.get("latitude"))
     lon = float(data.get("longitude"))
     resultado = mover_para_astro(nome, lat, lon)
+
     if resultado is None:
-        return jsonify({"erro": f'Astro "{nome}" não encontrado.'}), 404
-    az, alt = resultado
-    return jsonify({"astro": nome.capitalize(), "az": az, "alt": alt})
+        return jsonify({
+            "ok": False,
+            "erro": f'Astro "{nome}" não encontrado.'
+        }), 404
+
+    if not resultado["ok"]:
+        return jsonify({
+            "ok": False,
+            "erro": resultado["erro"],
+            "astro": nome.capitalize(),
+            "az": resultado["az"],
+            "alt": resultado["alt"]
+        }), 400
+
+    return jsonify({
+        "ok": True,
+        "astro": nome.capitalize(),
+        "az": resultado["az"],
+        "alt": resultado["alt"]
+    })
  
 # Seguir continuamente (GoTo + velocidade contínua com compensação)
 @app.route("/seguir", methods=["POST", "GET"])

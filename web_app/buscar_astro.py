@@ -50,6 +50,16 @@ _track_state = {
     "errors": 0,
 }
 
+# =========================
+# LIMITES DE SEGURANÇA
+# =========================
+
+ALT_MIN_SEGURA = 0.0
+ALT_MAX_SEGURA = 90.0
+
+def _altitude_segura(altitude):
+    return ALT_MIN_SEGURA <= altitude <= ALT_MAX_SEGURA
+
 # === Helpers ===
 def _norm360(x: float) -> float:
     return (x % 360.0 + 360.0) % 360.0
@@ -364,18 +374,51 @@ def mover_para_astro(nome_astro, latitude, longitude):
         astro = eph[nome_astro.capitalize()]
         observador = terra + Topos(latitude_degrees=latitude, longitude_degrees=longitude)
         alt, az, _ = observador.at(t).observe(astro).apparent().altaz()
+
+        az_deg = float(az.degrees)
+        alt_deg = float(alt.degrees)
+
+        if not _altitude_segura(alt_deg):
+            print(
+                f"[SEGURANÇA] Movimento bloqueado. "
+                f"AZ={az_deg:.2f}°, ALT={alt_deg:.2f}°"
+            )
+
+            return {
+                "ok": False,
+                "erro": "Astro abaixo do horizonte.",
+                "az": az_deg,
+                "alt": alt_deg
+            }
+
     except Exception as e:
         print(f"[ERRO] Falha ao calcular o astro: {e}")
         return None
 
     try:
-        url = f"http://{ESP32_IP}/mover?az={az.degrees:.3f}&alt={alt.degrees:.3f}"
-        requests.get(url, timeout=2.5)
-        print(f"[ASTRO] GoTo AZ={az.degrees:.3f}, ALT={alt.degrees:.3f}")
+        url = f"http://{ESP32_IP}/mover"
+
+        requests.get(
+            url,
+            params={
+                "az": f"{az_deg:.3f}",
+                "alt": f"{alt_deg:.3f}"
+            },
+            timeout=2.5
+        )
+
+        print(
+            f"[ASTRO] GoTo AZ={az_deg:.3f}, ALT={alt_deg:.3f}"
+        )
+
     except Exception as e:
         print(f"[ESP32] Erro ao enviar comando: {e}")
 
-    return az.degrees, alt.degrees
+    return {
+        "ok": True,
+        "az": az_deg,
+        "alt": alt_deg
+    }
 
 
 
