@@ -6,11 +6,15 @@ from controle_astro import (
     mover_baixo,
     executar_home,
 )
+
+
 from buscar_astro import (
     mover_para_astro,
     iniciar_seguimento,
     parar_seguimento,
     status_seguimento,
+    alinhar_com_astro,
+    status_alinhamento,
 )
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -76,6 +80,55 @@ def seguir():
 
     ok, msg = iniciar_seguimento(lat, lon, astro, interval, gain, min_step, max_step)
     return jsonify({"ok": ok, "msg": msg, "status": status_seguimento()}), (200 if ok else 500)
+
+
+@app.route("/alinhar", methods=["POST"])
+def alinhar():
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        nome = str(data.get("nome", "")).strip()
+        lat = float(data.get("latitude"))
+        lon = float(data.get("longitude"))
+
+    except Exception:
+
+        return jsonify({
+            "ok": False,
+            "erro": "Dados inválidos para alinhamento."
+        }), 400
+
+
+    if not nome:
+
+        return jsonify({
+            "ok": False,
+            "erro": "Informe o astro usado no alinhamento."
+        }), 400
+
+
+    resultado = alinhar_com_astro(
+        nome,
+        lat,
+        lon
+    )
+
+    if not resultado["ok"]:
+
+        return jsonify(resultado), 400
+
+
+    return jsonify(resultado)
+
+
+@app.route("/alinhamento_status", methods=["GET"])
+def alinhamento_status():
+
+    return jsonify(
+        status_alinhamento()
+    )
+
 
 @app.route("/parar", methods=["POST", "GET"])
 def parar():

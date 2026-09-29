@@ -60,6 +60,23 @@ ALT_MAX_SEGURA = 90.0
 def _altitude_segura(altitude):
     return ALT_MIN_SEGURA <= altitude <= ALT_MAX_SEGURA
 
+
+# =========================
+# ESTADO DO ALINHAMENTO
+# =========================
+
+ALINHAMENTO = {
+    "ativo": False,
+    "astro": None,
+    "az_ceu": None,
+    "alt_ceu": None,
+    "az_motor": None,
+    "alt_motor": None,
+    "offset_az": 0.0,
+    "offset_alt": 0.0,
+    "data": None,
+}
+
 # === Helpers ===
 def _norm360(x: float) -> float:
     return (x % 360.0 + 360.0) % 360.0
@@ -368,6 +385,156 @@ def status_seguimento():
     return dict(_track_state)
 
 # GoTo pontual (sem seguimento)
+
+def alinhar_com_astro(nome_astro, latitude, longitude):
+    """
+    Registra um ponto de alinhamento.
+
+    NÃO altera GoTo nem tracking ainda.
+    Apenas compara:
+
+    posição real do astro no céu
+    X
+    posição lógica atual dos motores
+    """
+
+    try:
+        # =========================
+        # POSIÇÃO ATUAL DOS MOTORES
+        # =========================
+
+        resposta = requests.get(
+            f"http://{ESP32_IP}/motion_status",
+            timeout=2
+        )
+
+        resposta.raise_for_status()
+        status_motor = resposta.json()
+
+        az_motor = float(status_motor["azDeg"])
+        alt_motor = float(status_motor["altDeg"])
+
+    except Exception as erro:
+        print(f"[ALINHAMENTO] Erro lendo ESP32: {erro}")
+
+        return {
+            "ok": False,
+            "erro": f"Não foi possível ler a posição dos motores: {erro}"
+        }
+
+
+    try:
+        # =========================
+        # POSIÇÃO REAL DO ASTRO
+        # =========================
+
+        t = ts.from_datetime(datetime.now(timezone.utc))
+
+        astro = eph[nome_astro.capitalize()]
+
+        observador = terra + Topos(
+            latitude_degrees=latitude,
+            longitude_degrees=longitude
+        )
+
+        alt, az, _ = (
+            observador
+            .at(t)
+            .observe(astro)
+            .apparent()
+            .altaz()
+        )
+
+        az_ceu = float(az.degrees)
+        alt_ceu = float(alt.degrees)
+
+    except Exception as erro:
+        print(f"[ALINHAMENTO] Erro calculando astro: {erro}")
+
+        return {
+            "ok": False,
+            "erro": f'Não foi possível calcular o astro "{nome_astro}".'
+        }
+
+
+    # =========================
+    # SEGURANÇA
+    # =========================
+
+    if not _altitude_segura(alt_ceu):
+
+        return {
+            "ok": False,
+            "erro": "Não é possível alinhar com um astro abaixo do horizonte.",
+            "az": az_ceu,
+            "alt": alt_ceu
+        }
+
+
+    # =========================
+    # CALCULA OS OFFSETS
+    # =========================
+
+    offset_az = _shortest_delta_deg(
+        az_ceu,
+        az_motor
+    )
+
+    offset_alt = (
+        alt_ceu
+        - alt_motor
+    )
+
+
+    # =========================
+    # SALVA O ALINHAMENTO
+    # =========================
+
+    ALINHAMENTO.update({
+        "ativo": True,
+        "astro": nome_astro.capitalize(),
+
+        "az_ceu": az_ceu,
+        "alt_ceu": alt_ceu,
+
+        "az_motor": az_motor,
+        "alt_motor": alt_motor,
+
+        "offset_az": offset_az,
+        "offset_alt": offset_alt,
+
+        "data": datetime.now(timezone.utc).isoformat()
+    })
+
+
+    print(
+        f"[ALINHAMENTO] {nome_astro} | "
+        f"Céu AZ={az_ceu:.3f} ALT={alt_ceu:.3f} | "
+        f"Motor AZ={az_motor:.3f} ALT={alt_motor:.3f} | "
+        f"Offset AZ={offset_az:.3f} ALT={offset_alt:.3f}"
+    )
+
+
+    return {
+        "ok": True,
+
+        "astro": nome_astro.capitalize(),
+
+        "az_ceu": az_ceu,
+        "alt_ceu": alt_ceu,
+
+        "az_motor": az_motor,
+        "alt_motor": alt_motor,
+
+        "offset_az": offset_az,
+        "offset_alt": offset_alt
+    }
+
+
+def status_alinhamento():
+    return dict(ALINHAMENTO)
+
+
 def mover_para_astro(nome_astro, latitude, longitude):
     try:
         t = ts.from_datetime(datetime.now(timezone.utc))
