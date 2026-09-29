@@ -9,6 +9,7 @@
 #define STEP_ALT 18
 
 #define AZ_LIMIT_PIN 32
+#define ALT_LIMIT_PIN 33
 
 // =================== PARÂMETROS MECÂNICOS ===================
 // Motor NEMA17: 200 passos "cheios" por volta
@@ -118,6 +119,26 @@ void configurarRotas()
       );
     } });
 
+  server.on("/limit_alt", HTTP_GET, []()
+            {
+
+    int raw = digitalRead(ALT_LIMIT_PIN);
+    bool acionado = (raw == LOW);
+
+    if (acionado) {
+      server.send(
+        200,
+        "application/json",
+        "{\"acionado\":true,\"raw\":0,\"estado\":\"ACIONADO\"}"
+      );
+    } else {
+      server.send(
+        200,
+        "application/json",
+        "{\"acionado\":false,\"raw\":1,\"estado\":\"LIVRE\"}"
+      );
+    } });
+
   server.on("/home_az", HTTP_GET, []()
             {
 
@@ -167,6 +188,7 @@ void setup()
   Serial.println("[BOOT] Iniciando ESP32...");
 
   pinMode(AZ_LIMIT_PIN, INPUT_PULLUP);
+  pinMode(ALT_LIMIT_PIN, INPUT_PULLUP);
 
   // ----- Wi-Fi -----
   Serial.printf("[WIFI] Conectando a \"%s\" ...\n", ssid);
