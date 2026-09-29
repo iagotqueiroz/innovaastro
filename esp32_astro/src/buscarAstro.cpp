@@ -14,6 +14,7 @@ extern long ultimaMetaAzPassos;
 extern long ultimaMetaAltPassos;
 
 extern volatile bool g_homingAz;
+extern volatile bool g_homingAlt;
 
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
@@ -108,6 +109,7 @@ void configurarBuscarAstro() {
     // Sai imediatamente do modo tracking
     g_tracking = false;
     g_homingAz = false;
+    g_homingAlt = false;
 
     // Zera velocidades do runSpeed()
     motorAz.setSpeed(0);
