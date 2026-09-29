@@ -46,6 +46,8 @@ void configurarBuscarAstro() {
     accAltFrac = stepsAltDesired - (double)alvoAltPassos;
 
     // Em GoTo, usamos controle de posição (run). Desliga tracking.
+    g_homingAz = false;
+    g_homingAlt = false;
     g_tracking = false;
 
     if (labs(alvoAzPassos  - motorAz.targetPosition())  >= 1) motorAz.moveTo(alvoAzPassos);
@@ -81,6 +83,8 @@ void configurarBuscarAstro() {
     const float vAlt_steps_s = vAlt_deg_s * PASSOS_POR_GRAU_ALT;
 
     // Ativa modo tracking por velocidade
+    g_homingAz = false;
+g_homingAlt = false;
     g_tracking = true;
 
     // Zera metas de posição (evita “puxões” residuais)

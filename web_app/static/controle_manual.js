@@ -1,5 +1,51 @@
 // controle_manual.js
 
+const btnHome = document.getElementById("btnHome");
+const homeStatus = document.getElementById("homeStatus");
+
+const botoesManuais = [
+    document.getElementById("btnUp"),
+    document.getElementById("btnDown"),
+    document.getElementById("btnLeft"),
+    document.getElementById("btnRight")
+];
+
+btnHome.addEventListener("click", async function () {
+
+    btnHome.disabled = true;
+
+
+    homeStatus.textContent =
+        "Inicializando telescópio: HOME AZ → HOME ALT...";
+
+    try {
+
+        const resposta = await fetch("/home", {
+            method: "POST"
+        });
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok || !dados.ok) {
+            throw new Error(
+                dados.msg || "Falha ao executar HOME."
+            );
+        }
+
+        homeStatus.textContent =
+            "Telescópio inicializado ✓ AZ = 0 / ALT = 0";
+
+    } catch (erro) {
+
+        homeStatus.textContent =
+            "Erro no HOME: " + erro.message;
+
+    } finally {
+
+        btnHome.disabled = false;
+    }
+});
+
 document.getElementById("btnUp").addEventListener("click", function() {
     fetch('/mover?comando=cima')
         .then(response => response.json())

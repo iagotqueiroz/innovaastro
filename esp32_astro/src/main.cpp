@@ -52,12 +52,14 @@ void configurarRotas();
 extern volatile bool g_tracking;
 
 volatile bool g_homingAz = false;
+volatile bool g_homeAzDone = false;
 
 const float HOME_AZ_SPEED = -50.0;
 unsigned long homeAzInicio = 0;
 const unsigned long HOME_AZ_TIMEOUT = 15000;
 
 volatile bool g_homingAlt = false;
+volatile bool g_homeAltDone = false;
 
 const float HOME_ALT_SPEED = -50.0;
 unsigned long homeAltInicio = 0;
@@ -92,6 +94,25 @@ void configurarRotas()
     String comando = server.arg("comando");
 
     g_tracking = false;
+
+    // Se estava fazendo HOME, cancela somente o modo HOME
+    if (g_homingAz) {
+      g_homingAz = false;
+      g_homeAzDone = false;
+
+      motorAz.setSpeed(0);
+      motorAz.moveTo(motorAz.currentPosition());
+    }
+
+    if (g_homingAlt) {
+      g_homingAlt = false;
+      g_homeAltDone = false;
+
+      motorAlt.setSpeed(0);
+      motorAlt.moveTo(motorAlt.currentPosition());
+    }
+
+
 
     if (comando == "direita") {
       moverDireita();  // Move para a direita
@@ -150,6 +171,7 @@ void configurarRotas()
 
     // Desliga tracking
     g_tracking = false;
+    g_homeAzDone = false;
 
     // Se o switch já estiver pressionado
     if (digitalRead(AZ_LIMIT_PIN) == LOW) {
@@ -159,6 +181,7 @@ void configurarRotas()
       motorAz.moveTo(0);
 
       g_homingAz = false;
+      g_homeAzDone = true;
 
       server.send(
         200,
@@ -189,6 +212,7 @@ void configurarRotas()
   server.on("/home_alt", HTTP_GET, []()
             {
 
+  g_homeAltDone = false;
   g_tracking = false;
 
   // Se já estiver no fim de curso
@@ -199,6 +223,7 @@ void configurarRotas()
     motorAlt.moveTo(0);
 
     g_homingAlt = false;
+    g_homeAltDone = true;
 
     server.send(
       200,
@@ -225,6 +250,30 @@ void configurarRotas()
     "application/json",
     "{\"ok\":true,\"status\":\"HOME ALT iniciado\"}"
   ); });
+
+  server.on("/home_status", HTTP_GET, []()
+            {
+
+  String json = "{";
+
+  json += "\"homingAz\":";
+  json += (g_homingAz ? "true" : "false");
+  json += ",";
+
+  json += "\"doneAz\":";
+  json += (g_homeAzDone ? "true" : "false");
+  json += ",";
+
+  json += "\"homingAlt\":";
+  json += (g_homingAlt ? "true" : "false");
+  json += ",";
+
+  json += "\"doneAlt\":";
+  json += (g_homeAltDone ? "true" : "false");
+
+  json += "}";
+
+  server.send(200, "application/json", json); });
 }
 
 void setup()
@@ -304,6 +353,7 @@ void loop()
       motorAz.setSpeed(0);
 
       g_homingAz = false;
+      g_homeAzDone = true;
 
       motorAz.setCurrentPosition(0);
       motorAz.moveTo(0);
@@ -318,6 +368,7 @@ void loop()
       motorAz.moveTo(motorAz.currentPosition());
 
       g_homingAz = false;
+      g_homeAzDone = false;
 
       Serial.println("[HOME AZ][ERRO] Timeout.");
     }
@@ -334,6 +385,7 @@ void loop()
       motorAlt.setSpeed(0);
 
       g_homingAlt = false;
+      g_homeAltDone = true;
 
       motorAlt.setCurrentPosition(0);
       motorAlt.moveTo(0);
@@ -347,6 +399,7 @@ void loop()
       motorAlt.moveTo(motorAlt.currentPosition());
 
       g_homingAlt = false;
+      g_homeAltDone = false;
 
       Serial.println("[HOME ALT][ERRO] Timeout.");
     }

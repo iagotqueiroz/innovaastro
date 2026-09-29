@@ -1,5 +1,11 @@
 from flask import Flask, render_template, request, jsonify
-from controle_astro import mover_direita, mover_esquerda, mover_cima, mover_baixo
+from controle_astro import (
+    mover_direita,
+    mover_esquerda,
+    mover_cima,
+    mover_baixo,
+    executar_home,
+)
 from buscar_astro import (
     mover_para_astro,
     iniciar_seguimento,
@@ -76,6 +82,23 @@ def mover():
         mover_baixo()
     
     return jsonify({"status": "movimento realizado", "comando": comando})
+
+@app.route("/home", methods=["POST"])
+def home():
+    try:
+        ok, mensagem = executar_home()
+
+        return jsonify({
+            "ok": ok,
+            "msg": mensagem
+        })
+
+    except Exception as erro:
+        return jsonify({
+            "ok": False,
+            "msg": f"Falha ao executar HOME: {erro}"
+        }), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
