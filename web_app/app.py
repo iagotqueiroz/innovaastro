@@ -15,6 +15,7 @@ from buscar_astro import (
     status_seguimento,
     alinhar_com_astro,
     status_alinhamento,
+    status_historico_alinhamentos,
     ajustar_tracking,
 )
 
@@ -128,6 +129,14 @@ def alinhamento_status():
 
     return jsonify(
         status_alinhamento()
+    )
+
+
+@app.route("/alinhamentos_status", methods=["GET"])
+def alinhamentos_status():
+
+    return jsonify(
+        status_historico_alinhamentos()
     )
 
 

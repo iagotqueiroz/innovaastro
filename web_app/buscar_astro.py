@@ -88,6 +88,19 @@ ALINHAMENTO = {
     "data": None,
 }
 
+
+# =========================
+# HISTÓRICO DE ALINHAMENTOS
+# =========================
+
+HISTORICO_ALINHAMENTOS = []
+
+MAX_ALINHAMENTOS = 20
+
+# Pontos muito baixos no horizonte não serão usados
+# para construir o modelo de alinhamento.
+ALT_MIN_MODELO_ALINHAMENTO = 15.0
+
 # === Helpers ===
 def _norm360(x: float) -> float:
     return (x % 360.0 + 360.0) % 360.0
@@ -602,6 +615,48 @@ def alinhar_com_astro(nome_astro, latitude, longitude):
     })
 
 
+    nome_normalizado = nome_astro.capitalize()
+
+    usar_no_modelo = (
+        alt_ceu >= ALT_MIN_MODELO_ALINHAMENTO
+        and nome_normalizado.lower() != "sun"
+    )
+
+
+    # =========================
+    # SALVA PONTO NO HISTÓRICO
+    # =========================
+
+    ponto_alinhamento = {
+        "astro": nome_astro.capitalize(),
+
+        "latitude": float(latitude),
+        "longitude": float(longitude),
+
+        "az_ceu": az_ceu,
+        "alt_ceu": alt_ceu,
+
+        "az_motor": az_motor,
+        "alt_motor": alt_motor,
+
+        "offset_az": offset_az,
+        "offset_alt": offset_alt,
+
+        "data": ALINHAMENTO["data"],
+
+        "usar_no_modelo": usar_no_modelo
+    }
+
+    HISTORICO_ALINHAMENTOS.append(
+        ponto_alinhamento
+    )
+
+    # Evita crescimento infinito da lista.
+    # Mantém os 20 pontos mais recentes.
+    if len(HISTORICO_ALINHAMENTOS) > MAX_ALINHAMENTOS:
+        HISTORICO_ALINHAMENTOS.pop(0)
+
+
     print(
         f"[ALINHAMENTO] {nome_astro} | "
         f"Céu AZ={az_ceu:.3f} ALT={alt_ceu:.3f} | "
@@ -628,6 +683,26 @@ def alinhar_com_astro(nome_astro, latitude, longitude):
 
 def status_alinhamento():
     return dict(ALINHAMENTO)
+
+
+def status_historico_alinhamentos():
+
+    pontos_validos = [
+        ponto
+        for ponto in HISTORICO_ALINHAMENTOS
+        if ponto.get("usar_no_modelo", False)
+    ]
+
+    return {
+        "quantidade": len(HISTORICO_ALINHAMENTOS),
+        "quantidade_validos": len(pontos_validos),
+
+        "pontos": [
+            dict(ponto)
+            for ponto in HISTORICO_ALINHAMENTOS
+        ]
+    }
+
 
 def _converter_ceu_para_motor(az_ceu, alt_ceu):
     """
