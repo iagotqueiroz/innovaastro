@@ -15,6 +15,7 @@ from buscar_astro import (
     status_seguimento,
     alinhar_com_astro,
     status_alinhamento,
+    ajustar_tracking,
 )
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -128,6 +129,27 @@ def alinhamento_status():
     return jsonify(
         status_alinhamento()
     )
+
+
+@app.route("/ajuste_tracking", methods=["POST"])
+def ajuste_tracking():
+
+    data = request.get_json(silent=True) or {}
+
+    direcao = str(
+        data.get("direcao", "")
+    ).strip().lower()
+
+    ok, mensagem, detalhes = ajustar_tracking(
+        direcao
+    )
+
+    return jsonify({
+        "ok": ok,
+        "msg": mensagem,
+        "detalhes": detalhes,
+        "tracking": status_seguimento()
+    }), (200 if ok else 409)
 
 
 @app.route("/parar", methods=["POST", "GET"])

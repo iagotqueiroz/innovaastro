@@ -51,6 +51,17 @@ _track_state = {
 }
 
 # =========================
+# AJUSTE FINO DO TRACKING
+# =========================
+
+# Bancada:
+# 1 passo do NEMA17 = 1.8°
+#
+# Quando tivermos redução/microstepping,
+# diminuiremos este valor.
+NUDGE_STEP_DEG = 1.8
+
+# =========================
 # LIMITES DE SEGURANÇA
 # =========================
 
@@ -395,6 +406,78 @@ def parar_seguimento():
 
 def status_seguimento():
     return dict(_track_state)
+
+
+def ajustar_tracking(direcao):
+    """
+    Faz um pequeno ajuste de posição sem desligar
+    o tracking astronômico.
+    """
+
+    if not _track_state["running"]:
+        return False, "Tracking ainda não está ativo.", None
+
+    mapa = {
+        "direita": (NUDGE_STEP_DEG, 0.0),
+        "esquerda": (-NUDGE_STEP_DEG, 0.0),
+        "cima": (0.0, NUDGE_STEP_DEG),
+        "baixo": (0.0, -NUDGE_STEP_DEG),
+    }
+
+    if direcao not in mapa:
+        return False, "Direção inválida.", None
+
+    delta_az, delta_alt = mapa[direcao]
+
+    try:
+        resposta = requests.get(
+            f"http://{ESP32_IP}/nudge",
+            params={
+                "daz": f"{delta_az:.4f}",
+                "dalt": f"{delta_alt:.4f}",
+            },
+            timeout=2
+        )
+
+        try:
+            dados = resposta.json()
+        except Exception:
+            dados = {}
+
+        if not resposta.ok:
+
+            return (
+                False,
+                dados.get(
+                    "erro",
+                    "ESP32 recusou o ajuste."
+                ),
+                dados
+            )
+
+        print(
+            f"[NUDGE] {direcao} | "
+            f"dAZ={delta_az:+.3f}° "
+            f"dALT={delta_alt:+.3f}°"
+        )
+
+        return (
+            True,
+            f"Ajuste {direcao} aplicado.",
+            dados
+        )
+
+    except Exception as erro:
+
+        print(
+            f"[NUDGE] Falha de comunicação: {erro}"
+        )
+
+        return (
+            False,
+            f"Falha ao executar ajuste: {erro}",
+            None
+        )
 
 # GoTo pontual (sem seguimento)
 

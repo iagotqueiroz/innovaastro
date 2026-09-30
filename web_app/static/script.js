@@ -56,6 +56,70 @@ function buscarAstro() {
                 ${data.alt.toFixed(2)}°
             </div>
 
+        <div class="mt-3 p-4 border border-gray-200 rounded-md">
+
+            <div class="font-bold mb-2">
+                Ajuste fino durante o rastreio
+            </div>
+
+            <div class="text-sm text-gray-500 mb-3">
+                Cada clique move 1,8° no modo bancada.
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 max-w-52">
+
+                <div></div>
+
+                <button
+                    class="btnNudge bg-slate-700 text-white p-3 rounded disabled:opacity-40"
+                    onclick="ajustarTracking('cima')"
+                    disabled>
+                    ↑
+                </button>
+
+                <div></div>
+
+
+                <button
+                    class="btnNudge bg-slate-700 text-white p-3 rounded disabled:opacity-40"
+                    onclick="ajustarTracking('esquerda')"
+                    disabled>
+                    ←
+                </button>
+
+                <div class="flex items-center justify-center text-xs">
+                    TRACK
+                </div>
+
+                <button
+                    class="btnNudge bg-slate-700 text-white p-3 rounded disabled:opacity-40"
+                    onclick="ajustarTracking('direita')"
+                    disabled>
+                    →
+                </button>
+
+
+                <div></div>
+
+                <button
+                    class="btnNudge bg-slate-700 text-white p-3 rounded disabled:opacity-40"
+                    onclick="ajustarTracking('baixo')"
+                    disabled>
+                    ↓
+                </button>
+
+                <div></div>
+
+            </div>
+
+            <div
+                id="nudgeStatus"
+                class="text-sm mt-3">
+                Aguardando tracking...
+            </div>
+
+        </div>
+
             <button
                 id="btnAlinhar"
                 onclick="alinharNesteAstro()"
@@ -244,6 +308,86 @@ async function alinharNesteAstro() {
 }
 
 
+function habilitarNudge(ativo) {
+
+    document
+        .querySelectorAll(".btnNudge")
+        .forEach(botao => {
+            botao.disabled = !ativo;
+        });
+
+    const status =
+        document.getElementById("nudgeStatus");
+
+    if (status) {
+
+        status.textContent = ativo
+            ? "Tracking ativo. Ajuste fino liberado."
+            : "Aguardando tracking...";
+    }
+}
+
+
+async function ajustarTracking(direcao) {
+
+    const status =
+        document.getElementById("nudgeStatus");
+
+    try {
+
+        const resposta = await fetch(
+            "/ajuste_tracking",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    direcao: direcao
+                })
+            }
+        );
+
+        const dados =
+            await resposta.json();
+
+        if (!resposta.ok || !dados.ok) {
+
+            throw new Error(
+                dados.msg ||
+                "Não foi possível aplicar o ajuste."
+            );
+        }
+
+        if (status) {
+
+            status.textContent =
+                `Ajuste: ${direcao}`;
+        }
+
+        console.log(
+            "[NUDGE]",
+            dados
+        );
+
+    } catch (erro) {
+
+        if (status) {
+
+            status.textContent =
+                "Erro: " + erro.message;
+        }
+
+        console.error(
+            "[NUDGE]",
+            erro
+        );
+    }
+}
+
+
 function iniciarRastreamento(nomeAstro, latitude, longitude) {
     console.log("[RASTREAMENTO] Iniciando:", nomeAstro, latitude, longitude);
 
@@ -264,13 +408,17 @@ function iniciarRastreamento(nomeAstro, latitude, longitude) {
 
         if (!data.ok) {
             console.error("[RASTREAMENTO] Falha:", data.msg);
+            habilitarNudge(false);
             return;
         }
 
         console.log("[RASTREAMENTO] Seguimento contínuo ativo.");
+
+        habilitarNudge(true);
     })
     .catch(error => {
         console.error("[RASTREAMENTO] Erro ao iniciar:", error);
+        habilitarNudge(false);
     });
 }
 
@@ -282,6 +430,7 @@ function pararTudo() {
     .then(response => response.json())
     .then(data => {
         console.log("[STOP]", data);
+        habilitarNudge(false);
     })
     .catch(error => {
         console.error("[STOP] Erro:", error);

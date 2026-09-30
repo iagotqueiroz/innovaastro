@@ -61,6 +61,9 @@ const char *password = "12345678";
 void configurarBuscarAstro();
 void configurarRotas();
 
+void atualizarTracking();
+void cancelarNudgeTracking();
+
 // ===== Flag vinda do buscarAstro.cpp (modo tracking por velocidade) =====
 extern volatile bool g_tracking;
 
@@ -107,6 +110,7 @@ void configurarRotas()
     String comando = server.arg("comando");
 
     g_tracking = false;
+    cancelarNudgeTracking();
 
     // Se estava fazendo HOME, cancela somente o modo HOME
     if (g_homingAz) {
@@ -184,6 +188,7 @@ void configurarRotas()
 
     // Desliga tracking
     g_tracking = false;
+    cancelarNudgeTracking();
     g_homeAzDone = false;
 
     // Se o switch já estiver pressionado
@@ -227,6 +232,7 @@ void configurarRotas()
 
   g_homeAltDone = false;
   g_tracking = false;
+  cancelarNudgeTracking();
 
   // Se já estiver no fim de curso
   if (digitalRead(ALT_LIMIT_PIN) == LOW) {
@@ -424,8 +430,7 @@ void loop()
   }
   else if (g_tracking)
   {
-    motorAz.runSpeed();
-    motorAlt.runSpeed();
+    atualizarTracking();
   }
   else
   {

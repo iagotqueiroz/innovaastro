@@ -19,6 +19,118 @@ extern volatile bool g_homingAlt;
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
 
+// ================================
+// AJUSTE FINO DURANTE O TRACKING
+// ================================
+
+// Velocidade normal calculada pelo Skyfield,
+// já convertida para passos/s
+static float g_trackSpeedAzSteps = 0.0f;
+static float g_trackSpeedAltSteps = 0.0f;
+
+// Velocidade usada somente durante o NUDGE.
+// Em bancada continua bem abaixo do limite do motor.
+static const float NUDGE_SPEED_DEG_S = 9.0f;
+
+// Estado do ajuste fino AZ
+static bool g_nudgeAzActive = false;
+static long g_nudgeAzTarget = 0;
+static int g_nudgeAzDirection = 0;
+
+// Estado do ajuste fino ALT
+static bool g_nudgeAltActive = false;
+static long g_nudgeAltTarget = 0;
+static int g_nudgeAltDirection = 0;
+
+
+static void aplicarVelocidadesTracking()
+{
+    float velocidadeAz = g_trackSpeedAzSteps;
+    float velocidadeAlt = g_trackSpeedAltSteps;
+
+    if (g_nudgeAzActive)
+    {
+        velocidadeAz +=
+            g_nudgeAzDirection *
+            NUDGE_SPEED_DEG_S *
+            PASSOS_POR_GRAU_AZ;
+    }
+
+    if (g_nudgeAltActive)
+    {
+        velocidadeAlt +=
+            g_nudgeAltDirection *
+            NUDGE_SPEED_DEG_S *
+            PASSOS_POR_GRAU_ALT;
+    }
+
+    motorAz.setSpeed(velocidadeAz);
+    motorAlt.setSpeed(velocidadeAlt);
+}
+
+
+void cancelarNudgeTracking()
+{
+    g_nudgeAzActive = false;
+    g_nudgeAltActive = false;
+
+    g_nudgeAzDirection = 0;
+    g_nudgeAltDirection = 0;
+}
+
+
+void atualizarTracking()
+{
+    // ========================
+    // Verifica fim do NUDGE AZ
+    // ========================
+
+    if (g_nudgeAzActive)
+    {
+        long atual = motorAz.currentPosition();
+
+        bool chegou =
+            (g_nudgeAzDirection > 0 && atual >= g_nudgeAzTarget) ||
+            (g_nudgeAzDirection < 0 && atual <= g_nudgeAzTarget);
+
+        if (chegou)
+        {
+            g_nudgeAzActive = false;
+            g_nudgeAzDirection = 0;
+
+            Serial.println("[NUDGE] AZ concluído.");
+        }
+    }
+
+    // =========================
+    // Verifica fim do NUDGE ALT
+    // =========================
+
+    if (g_nudgeAltActive)
+    {
+        long atual = motorAlt.currentPosition();
+
+        bool chegou =
+            (g_nudgeAltDirection > 0 && atual >= g_nudgeAltTarget) ||
+            (g_nudgeAltDirection < 0 && atual <= g_nudgeAltTarget);
+
+        if (chegou)
+        {
+            g_nudgeAltActive = false;
+            g_nudgeAltDirection = 0;
+
+            Serial.println("[NUDGE] ALT concluído.");
+        }
+    }
+
+    // Combina:
+    // tracking astronômico + eventual ajuste manual
+    aplicarVelocidadesTracking();
+
+    motorAz.runSpeed();
+    motorAlt.runSpeed();
+}
+
 
 // ====== CONFIGURA ROTAS ======
 void configurarBuscarAstro() {
@@ -46,6 +158,10 @@ void configurarBuscarAstro() {
     g_homingAz = false;
     g_homingAlt = false;
     g_tracking = false;
+    cancelarNudgeTracking();
+
+    g_trackSpeedAzSteps = 0;
+    g_trackSpeedAltSteps = 0;
 
     if (labs(alvoAzPassos  - motorAz.targetPosition())  >= 1) motorAz.moveTo(alvoAzPassos);
     if (labs(alvoAltPassos - motorAlt.targetPosition()) >= 1) motorAlt.moveTo(alvoAltPassos);
@@ -81,15 +197,17 @@ void configurarBuscarAstro() {
 
     // Ativa modo tracking por velocidade
     g_homingAz = false;
-g_homingAlt = false;
+    g_homingAlt = false;
     g_tracking = true;
 
     // Zera metas de posição (evita “puxões” residuais)
     motorAz.moveTo(motorAz.currentPosition());
     motorAlt.moveTo(motorAlt.currentPosition());
 
-    motorAz.setSpeed(vAz_steps_s);
-    motorAlt.setSpeed(vAlt_steps_s);
+    g_trackSpeedAzSteps = vAz_steps_s;
+    g_trackSpeedAltSteps = vAlt_steps_s;
+
+    aplicarVelocidadesTracking();
 
     String msg = "speed AZ=" + String(vAz_deg_s, 6) + " deg/s (" + String(vAz_steps_s, 3) + " sps), "
                  "ALT=" + String(vAlt_deg_s, 6) + " deg/s (" + String(vAlt_steps_s, 3) + " sps)";
@@ -97,18 +215,174 @@ g_homingAlt = false;
     server.send(200, "text/plain", msg);
   });
 
+
+  server.on("/nudge", HTTP_GET, []() {
+
+    if (!g_tracking)
+    {
+        server.send(
+            409,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"Tracking não está ativo.\"}"
+        );
+
+        return;
+    }
+
+    float deltaAz = 0.0f;
+    float deltaAlt = 0.0f;
+
+    if (server.hasArg("daz"))
+    {
+        deltaAz = server.arg("daz").toFloat();
+    }
+
+    if (server.hasArg("dalt"))
+    {
+        deltaAlt = server.arg("dalt").toFloat();
+    }
+
+    long deltaAzPassos = (long)llround(
+        deltaAz * PASSOS_POR_GRAU_AZ
+    );
+
+    long deltaAltPassos = (long)llround(
+        deltaAlt * PASSOS_POR_GRAU_ALT
+    );
+
+    if (deltaAzPassos == 0 && deltaAltPassos == 0)
+    {
+        server.send(
+            400,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"Ajuste menor que um passo do motor.\"}"
+        );
+
+        return;
+    }
+
+
+    // =========================
+    // NUDGE AZ
+    // =========================
+
+    if (deltaAzPassos != 0)
+    {
+        // Se já existe um ajuste em andamento,
+        // soma ao alvo anterior.
+        long baseAz =
+            g_nudgeAzActive
+                ? g_nudgeAzTarget
+                : motorAz.currentPosition();
+
+        g_nudgeAzTarget =
+            baseAz + deltaAzPassos;
+
+        long restante =
+            g_nudgeAzTarget -
+            motorAz.currentPosition();
+
+        if (restante > 0)
+            g_nudgeAzDirection = 1;
+        else if (restante < 0)
+            g_nudgeAzDirection = -1;
+        else
+            g_nudgeAzDirection = 0;
+
+        g_nudgeAzActive =
+            (g_nudgeAzDirection != 0);
+    }
+
+
+    // =========================
+    // NUDGE ALT
+    // =========================
+
+    if (deltaAltPassos != 0)
+    {
+        long baseAlt =
+            g_nudgeAltActive
+                ? g_nudgeAltTarget
+                : motorAlt.currentPosition();
+
+        g_nudgeAltTarget =
+            baseAlt + deltaAltPassos;
+
+        long restante =
+            g_nudgeAltTarget -
+            motorAlt.currentPosition();
+
+        if (restante > 0)
+            g_nudgeAltDirection = 1;
+        else if (restante < 0)
+            g_nudgeAltDirection = -1;
+        else
+            g_nudgeAltDirection = 0;
+
+        g_nudgeAltActive =
+            (g_nudgeAltDirection != 0);
+    }
+
+
+    aplicarVelocidadesTracking();
+
+
+    Serial.printf(
+        "[NUDGE] daz=%.3f° (%ld passos) | dalt=%.3f° (%ld passos)\n",
+        deltaAz,
+        deltaAzPassos,
+        deltaAlt,
+        deltaAltPassos
+    );
+
+
+    String json = "{";
+
+    json += "\"ok\":true,";
+    json += "\"deltaAzPassos\":" +
+            String(deltaAzPassos) + ",";
+
+    json += "\"deltaAltPassos\":" +
+            String(deltaAltPassos);
+
+    json += "}";
+
+    server.send(
+        200,
+        "application/json",
+        json
+    );
+});
+
+
   // (Opcional) Pausa o tracking (zera speed)
   server.on("/track_off", HTTP_GET, []() {
+
     g_tracking = false;
+
+    cancelarNudgeTracking();
+
+    g_trackSpeedAzSteps = 0;
+    g_trackSpeedAltSteps = 0;
+
     motorAz.setSpeed(0);
     motorAlt.setSpeed(0);
-    server.send(200, "text/plain", "tracking off");
+
+    server.send(
+        200,
+        "text/plain",
+        "tracking off"
+    );
   });
 
   server.on("/stop", HTTP_GET, []() {
 
     // Sai imediatamente do modo tracking
     g_tracking = false;
+    cancelarNudgeTracking();
+
+    g_trackSpeedAzSteps = 0;
+    g_trackSpeedAltSteps = 0;
     g_homingAz = false;
     g_homingAlt = false;
 
