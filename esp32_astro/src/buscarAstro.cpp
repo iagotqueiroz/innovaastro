@@ -19,9 +19,6 @@ extern volatile bool g_homingAlt;
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
 
-// --- ACUMULADORES DE FRAÇÃO DE PASSO (para /mover em posição absoluta) ---
-static double accAzFrac  = 0.0;
-static double accAltFrac = 0.0;
 
 // ====== CONFIGURA ROTAS ======
 void configurarBuscarAstro() {
@@ -35,15 +32,15 @@ void configurarBuscarAstro() {
     const float grausAz  = server.arg("az").toFloat();
     const float grausAlt = server.arg("alt").toFloat();
 
-    // Converte para passos (com acúmulo de fração -> ultra fino)
-    double stepsAzDesired  = (double)grausAz  * (double)PASSOS_POR_GRAU_AZ  + accAzFrac;
-    double stepsAltDesired = (double)grausAlt * (double)PASSOS_POR_GRAU_ALT + accAltFrac;
+    long alvoAzPassos = (long)llround(
+      (double)grausAz *
+      (double)PASSOS_POR_GRAU_AZ
+    );
 
-    long alvoAzPassos  = (long)llround(stepsAzDesired);
-    long alvoAltPassos = (long)llround(stepsAltDesired);
-
-    accAzFrac  = stepsAzDesired  - (double)alvoAzPassos;
-    accAltFrac = stepsAltDesired - (double)alvoAltPassos;
+    long alvoAltPassos = (long)llround(
+      (double)grausAlt *
+      (double)PASSOS_POR_GRAU_ALT
+    );
 
     // Em GoTo, usamos controle de posição (run). Desliga tracking.
     g_homingAz = false;

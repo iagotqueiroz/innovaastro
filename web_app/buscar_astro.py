@@ -305,12 +305,24 @@ def iniciar_seguimento(lat: float, lon: float, astro: str, interval: int = 3,
         az_lead_deg  = float(az_lead.degrees)
         alt_lead_deg = float(alt_lead.degrees)
 
+        az_motor_alvo, alt_motor_alvo = _converter_ceu_para_motor(
+            az_lead_deg,
+            alt_lead_deg
+        )
+
         try:
             url = f"http://{ESP32_IP}/mover"
-            requests.get(url, params={"az": f"{az_lead_deg:.3f}", "alt": f"{alt_lead_deg:.3f}"}, timeout=2.5)
+            requests.get(url, params={
+                "az": f"{az_motor_alvo:.3f}", 
+                "alt": f"{alt_motor_alvo:.3f}"
+                }, timeout=2.5)
         except Exception as e:
             _track_state["errors"] += 1
-            print(f"[GoTo inicial] Falha ao enviar p/ ESP32: {e}")
+            print(
+                f"[GOTO ALINHADO] "
+                f"Céu AZ={az_lead_deg:.3f} ALT={alt_lead_deg:.3f} | "
+                f"Motor AZ={az_motor_alvo:.3f} ALT={alt_motor_alvo:.3f}"
+            )
 
         # base de integração = a posição que pedimos agora (com lead)
         SEGUIMENTO_CFG["last_cmd_az"]  = _norm360(az_lead_deg)
@@ -534,6 +546,33 @@ def alinhar_com_astro(nome_astro, latitude, longitude):
 def status_alinhamento():
     return dict(ALINHAMENTO)
 
+def _converter_ceu_para_motor(az_ceu, alt_ceu):
+    """
+    Converte uma coordenada real do céu para a posição
+    mecânica que os motores devem assumir.
+
+    céu = motor + offset
+
+    portanto:
+
+    motor = céu - offset
+    """
+
+    az_ceu = float(az_ceu)
+    alt_ceu = float(alt_ceu)
+
+    # Sem alinhamento, mantém o comportamento atual
+    if not ALINHAMENTO["ativo"]:
+        return az_ceu, alt_ceu
+
+    offset_az = float(ALINHAMENTO["offset_az"])
+    offset_alt = float(ALINHAMENTO["offset_alt"])
+
+    az_motor = az_ceu - offset_az
+    alt_motor = alt_ceu - offset_alt
+
+    return az_motor, alt_motor
+
 
 def mover_para_astro(nome_astro, latitude, longitude):
     try:
@@ -565,17 +604,24 @@ def mover_para_astro(nome_astro, latitude, longitude):
     try:
         url = f"http://{ESP32_IP}/mover"
 
+        az_motor_alvo, alt_motor_alvo = _converter_ceu_para_motor(
+            az_deg,
+            alt_deg
+        )
+
         requests.get(
             url,
             params={
-                "az": f"{az_deg:.3f}",
-                "alt": f"{alt_deg:.3f}"
+                "az": f"{az_motor_alvo:.3f}",
+                "alt": f"{alt_motor_alvo:.3f}"
             },
             timeout=2.5
         )
 
         print(
-            f"[ASTRO] GoTo AZ={az_deg:.3f}, ALT={alt_deg:.3f}"
+            f"[ASTRO] Céu AZ={az_deg:.3f} ALT={alt_deg:.3f} | "
+            f"Motor AZ={az_motor_alvo:.3f} ALT={alt_motor_alvo:.3f} | "
+            f"Alinhamento={'ATIVO' if ALINHAMENTO['ativo'] else 'INATIVO'}"
         )
 
     except Exception as e:
@@ -584,7 +630,10 @@ def mover_para_astro(nome_astro, latitude, longitude):
     return {
         "ok": True,
         "az": az_deg,
-        "alt": alt_deg
+        "alt": alt_deg,
+        "az_motor": az_motor_alvo,
+        "alt_motor": alt_motor_alvo,
+        "alinhamento_ativo": ALINHAMENTO["ativo"]
     }
 
 
