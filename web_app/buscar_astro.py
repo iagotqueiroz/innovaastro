@@ -4,6 +4,7 @@ from config import ESP32_IP
 import requests
 import threading
 import time
+import math
 
 # === Efemérides (carrega 1x) ===
 eph = load("de421.bsp")
@@ -704,32 +705,200 @@ def status_historico_alinhamentos():
     }
 
 
-def _converter_ceu_para_motor(az_ceu, alt_ceu):
+def _distancia_angular_graus(
+    az1,
+    alt1,
+    az2,
+    alt2
+):
     """
-    Converte uma coordenada real do céu para a posição
-    mecânica que os motores devem assumir.
+    Distância angular entre dois pontos Alt/Az.
+    Resultado em graus.
+    """
 
-    céu = motor + offset
+    az1_rad = math.radians(az1)
+    alt1_rad = math.radians(alt1)
 
-    portanto:
+    az2_rad = math.radians(az2)
+    alt2_rad = math.radians(alt2)
 
-    motor = céu - offset
+    cos_distancia = (
+        math.sin(alt1_rad) *
+        math.sin(alt2_rad)
+        +
+        math.cos(alt1_rad) *
+        math.cos(alt2_rad) *
+        math.cos(az1_rad - az2_rad)
+    )
+
+    cos_distancia = max(
+        -1.0,
+        min(1.0, cos_distancia)
+    )
+
+    return math.degrees(
+        math.acos(cos_distancia)
+    )
+
+
+def _calcular_offset_modelo(
+    az_ceu,
+    alt_ceu
+):
+    """
+    Calcula o offset usando os pontos válidos
+    do histórico.
+
+    Pontos mais próximos da região atual do céu
+    recebem peso maior.
+    """
+
+    pontos_validos = [
+        ponto
+        for ponto in HISTORICO_ALINHAMENTOS
+        if ponto.get(
+            "usar_no_modelo",
+            False
+        )
+    ]
+
+
+    # Nenhum alinhamento válido
+    if len(pontos_validos) == 0:
+
+        return 0.0, 0.0, 0
+
+
+    # Apenas um ponto:
+    # mantém comportamento equivalente
+    # ao alinhamento simples antigo.
+    if len(pontos_validos) == 1:
+
+        ponto = pontos_validos[0]
+
+        return (
+            float(ponto["offset_az"]),
+            float(ponto["offset_alt"]),
+            1
+        )
+
+
+    soma_pesos = 0.0
+
+    soma_offset_az = 0.0
+    soma_offset_alt = 0.0
+
+
+    for ponto in pontos_validos:
+
+        distancia = _distancia_angular_graus(
+            az_ceu,
+            alt_ceu,
+            float(ponto["az_ceu"]),
+            float(ponto["alt_ceu"])
+        )
+
+
+        # Se o alvo estiver praticamente
+        # no mesmo ponto de um alinhamento,
+        # usamos exatamente aquele ponto.
+        if distancia < 0.1:
+
+            return (
+                float(ponto["offset_az"]),
+                float(ponto["offset_alt"]),
+                len(pontos_validos)
+            )
+
+
+        # Peso inversamente proporcional
+        # ao quadrado da distância.
+        #
+        # O +1 impede pesos extremos.
+        peso = 1.0 / (
+            (distancia + 1.0) ** 2
+        )
+
+
+        soma_offset_az += (
+            float(ponto["offset_az"])
+            * peso
+        )
+
+        soma_offset_alt += (
+            float(ponto["offset_alt"])
+            * peso
+        )
+
+        soma_pesos += peso
+
+
+    if soma_pesos <= 0:
+
+        return 0.0, 0.0, 0
+
+
+    offset_az = (
+        soma_offset_az /
+        soma_pesos
+    )
+
+    offset_alt = (
+        soma_offset_alt /
+        soma_pesos
+    )
+
+
+    return (
+        offset_az,
+        offset_alt,
+        len(pontos_validos)
+    )
+
+
+def _converter_ceu_para_motor(
+    az_ceu,
+    alt_ceu
+):
+    """
+    Converte posição do céu para posição
+    mecânica usando o modelo de alinhamento.
     """
 
     az_ceu = float(az_ceu)
     alt_ceu = float(alt_ceu)
 
-    # Sem alinhamento, mantém o comportamento atual
-    if not ALINHAMENTO["ativo"]:
-        return az_ceu, alt_ceu
 
-    offset_az = float(ALINHAMENTO["offset_az"])
-    offset_alt = float(ALINHAMENTO["offset_alt"])
+    offset_az, offset_alt, quantidade = (
+        _calcular_offset_modelo(
+            az_ceu,
+            alt_ceu
+        )
+    )
 
-    az_motor = az_ceu - offset_az
-    alt_motor = alt_ceu - offset_alt
 
-    return az_motor, alt_motor
+    az_motor = (
+        az_ceu -
+        offset_az
+    )
+
+    alt_motor = (
+        alt_ceu -
+        offset_alt
+    )
+
+
+    print(
+        f"[MODELO] Pontos={quantidade} | "
+        f"Offset AZ={offset_az:+.3f}° "
+        f"ALT={offset_alt:+.3f}°"
+    )
+
+
+    return (
+        az_motor,
+        alt_motor
+    )
 
 
 def mover_para_astro(nome_astro, latitude, longitude):
