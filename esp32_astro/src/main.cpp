@@ -2,6 +2,12 @@
 #include <AccelStepper.h>
 #include <WebServer.h>
 
+// =================== GPS ===================
+HardwareSerial GPS_SERIAL(2);
+
+#define GPS_RX_PIN 16
+#define GPS_TX_PIN 17
+
 // =================== AJUSTES DO SEU HARDWARE ===================
 #define DIR_AZ 26
 #define STEP_AZ 25
@@ -15,7 +21,7 @@
 // Motor NEMA17: 200 passos "cheios" por volta
 static const int STEPS_PER_REV = 200;
 // A4988 em 1/16 (MS1, MS2, MS3 em HIGH)
-static const int MICROSTEPPING = 1;
+static const int MICROSTEPPING = 16;
 
 // ===== MODO DE TESTE =====
 // true  = motores sem redução, teste de bancada
@@ -27,6 +33,9 @@ static const bool BENCH_MODE = true;
 // ALT: motor 16 dentes, coroa 112 dentes => 112/16 = 7.0
 static const float GEAR_RATIO_AZ_REAL = 24.0f;
 static const float GEAR_RATIO_ALT_REAL = 15.0f;
+
+// Movimento manual
+static const long MANUAL_MOVE_STEPS = 100L * MICROSTEPPING;
 
 static const float GEAR_RATIO_AZ =
     BENCH_MODE ? 1.0f : GEAR_RATIO_AZ_REAL;
@@ -70,36 +79,36 @@ extern volatile bool g_tracking;
 volatile bool g_homingAz = false;
 volatile bool g_homeAzDone = false;
 
-const float HOME_AZ_SPEED = -50.0;
+const float HOME_AZ_SPEED = 200.0f * MICROSTEPPING;
 unsigned long homeAzInicio = 0;
-const unsigned long HOME_AZ_TIMEOUT = 15000;
+const unsigned long HOME_AZ_TIMEOUT = 120000;
 
 volatile bool g_homingAlt = false;
 volatile bool g_homeAltDone = false;
 
-const float HOME_ALT_SPEED = -50.0;
+const float HOME_ALT_SPEED = -200.0f * MICROSTEPPING;
 unsigned long homeAltInicio = 0;
-const unsigned long HOME_ALT_TIMEOUT = 15000;
+const unsigned long HOME_ALT_TIMEOUT = 120000;
 
 // Funções para mover os motores manualmente
 void moverDireita()
 {
-  motorAz.moveTo(motorAz.currentPosition() + 100); // Move para direita
+  motorAz.moveTo(motorAz.currentPosition() + MANUAL_MOVE_STEPS); // Move para direita
 }
 
 void moverEsquerda()
 {
-  motorAz.moveTo(motorAz.currentPosition() - 100); // Move para esquerda
+  motorAz.moveTo(motorAz.currentPosition() - MANUAL_MOVE_STEPS); // Move para esquerda
 }
 
 void moverCima()
 {
-  motorAlt.moveTo(motorAlt.currentPosition() + 100); // Move para cima
+  motorAlt.moveTo(motorAlt.currentPosition() + MANUAL_MOVE_STEPS); // Move para cima
 }
 
 void moverBaixo()
 {
-  motorAlt.moveTo(motorAlt.currentPosition() - 100); // Move para baixo
+  motorAlt.moveTo(motorAlt.currentPosition() - MANUAL_MOVE_STEPS); // Move para baixo
 }
 
 // Função para configurar as rotas no servidor
@@ -298,6 +307,16 @@ void configurarRotas()
 void setup()
 {
   Serial.begin(115200);
+
+  GPS_SERIAL.begin(
+    9600,
+    SERIAL_8N1,
+    GPS_RX_PIN,
+    GPS_TX_PIN
+  );
+
+  Serial.println("[GPS] UART iniciada em 9600 baud.");
+
   Serial.println();
   Serial.println("[BOOT] Iniciando ESP32...");
 
@@ -330,11 +349,11 @@ void setup()
   }
 
   // ----- Motores -----
-  motorAz.setMaxSpeed(200);     // ajuste fino depois, manter ≥ velocidade máxima que usará
-  motorAz.setAcceleration(100); // ajuste fino depois
+  motorAz.setMaxSpeed(200.0f * MICROSTEPPING);     // ajuste fino depois, manter ≥ velocidade máxima que usará
+  motorAz.setAcceleration(100.0f * MICROSTEPPING); // ajuste fino depois
 
-  motorAlt.setMaxSpeed(200);
-  motorAlt.setAcceleration(100);
+  motorAlt.setMaxSpeed(200.0f * MICROSTEPPING);
+  motorAlt.setAcceleration(100.0f * MICROSTEPPING);
 
   // Direções (mantive como você tinha)
   motorAz.setPinsInverted(true, false);
@@ -363,6 +382,13 @@ void setup()
 void loop()
 {
   server.handleClient();
+
+    while (GPS_SERIAL.available())
+  {
+      char c = GPS_SERIAL.read();
+      Serial.write(c);
+  }
+
 
   if (g_homingAz)
   {
