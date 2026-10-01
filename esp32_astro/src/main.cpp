@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <AccelStepper.h>
 #include <WebServer.h>
+#include <math.h>
 
 // =================== GPS ===================
 HardwareSerial GPS_SERIAL(2);
@@ -26,7 +27,7 @@ static const int MICROSTEPPING = 16;
 // ===== MODO DE TESTE =====
 // true  = motores sem redução, teste de bancada
 // false = montagem real com polias
-static const bool BENCH_MODE = true;
+static const bool BENCH_MODE = false;
 
 // Relações mecânicas por eixo (polia/coroa)
 // AZ: motor 16 dentes, coroa ~178 dentes => 178/16 = 11.125
@@ -35,15 +36,14 @@ static const float GEAR_RATIO_AZ_REAL = 24.0f;
 static const float GEAR_RATIO_ALT_REAL = 15.0f;
 
 // Movimento manual
-static const long MANUAL_MOVE_STEPS = 100L * MICROSTEPPING;
+static const float MANUAL_MOVE_DEG =
+    1.0f;
 
 static const float GEAR_RATIO_AZ =
     BENCH_MODE ? 1.0f : GEAR_RATIO_AZ_REAL;
 
 static const float GEAR_RATIO_ALT =
     BENCH_MODE ? 1.0f : GEAR_RATIO_ALT_REAL;
-
-
 
 // passos por grau = (passos por volta * microstepping * relação) / 360
 float PASSOS_POR_GRAU_AZ = (STEPS_PER_REV * MICROSTEPPING * GEAR_RATIO_AZ) / 360.0f;   // ≈ 98.8889
@@ -79,36 +79,107 @@ extern volatile bool g_tracking;
 volatile bool g_homingAz = false;
 volatile bool g_homeAzDone = false;
 
-const float HOME_AZ_SPEED = 200.0f * MICROSTEPPING;
 unsigned long homeAzInicio = 0;
 const unsigned long HOME_AZ_TIMEOUT = 120000;
 
 volatile bool g_homingAlt = false;
 volatile bool g_homeAltDone = false;
 
-const float HOME_ALT_SPEED = -200.0f * MICROSTEPPING;
 unsigned long homeAltInicio = 0;
 const unsigned long HOME_ALT_TIMEOUT = 120000;
 
+const float HOME_AZ_FAST_SPEED =
+    100.0f * MICROSTEPPING;
+
+const float HOME_AZ_SLOW_SPEED =
+    20.0f * MICROSTEPPING;
+
+const float HOME_AZ_BACKOFF_SPEED =
+    -40.0f * MICROSTEPPING;
+
+const float HOME_ALT_FAST_SPEED =
+    -100.0f * MICROSTEPPING;
+
+const float HOME_ALT_SLOW_SPEED =
+    -20.0f * MICROSTEPPING;
+
+const float HOME_ALT_BACKOFF_SPEED =
+    40.0f * MICROSTEPPING;
+
+const float HOME_AZ_CLEARANCE_DEG = 1.0f;
+const float HOME_ALT_CLEARANCE_DEG = 1.0f;
+
+enum HomePhase
+{
+  HOME_IDLE,
+
+  HOME_SEEK_FAST,
+
+  HOME_RELEASE_FIRST,
+  HOME_CLEAR_FIRST,
+
+  HOME_SEEK_SLOW,
+
+  HOME_RELEASE_FINAL,
+  HOME_CLEAR_FINAL
+};
+
+HomePhase homeAzPhase = HOME_IDLE;
+HomePhase homeAltPhase = HOME_IDLE;
+
+long homeAzClearTarget = 0;
+long homeAltClearTarget = 0;
+
+long homeAzClearanceSteps()
+{
+  long passos = (long)lround(
+      HOME_AZ_CLEARANCE_DEG *
+      PASSOS_POR_GRAU_AZ);
+
+  return passos < 1 ? 1 : passos;
+}
+
+long homeAltClearanceSteps()
+{
+  long passos = (long)lround(
+      HOME_ALT_CLEARANCE_DEG *
+      PASSOS_POR_GRAU_ALT);
+
+  return passos < 1 ? 1 : passos;
+}
+
+// Funções para mover os motores manualmente
 // Funções para mover os motores manualmente
 void moverDireita()
 {
-  motorAz.moveTo(motorAz.currentPosition() + MANUAL_MOVE_STEPS); // Move para direita
+  motorAz.moveTo(
+      motorAz.currentPosition() +
+      (long)lround(
+          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_AZ));
 }
 
 void moverEsquerda()
 {
-  motorAz.moveTo(motorAz.currentPosition() - MANUAL_MOVE_STEPS); // Move para esquerda
+  motorAz.moveTo(
+      motorAz.currentPosition() -
+      (long)lround(
+          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_AZ));
 }
 
 void moverCima()
 {
-  motorAlt.moveTo(motorAlt.currentPosition() + MANUAL_MOVE_STEPS); // Move para cima
+  motorAlt.moveTo(
+      motorAlt.currentPosition() +
+      (long)lround(
+          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_ALT));
 }
 
 void moverBaixo()
 {
-  motorAlt.moveTo(motorAlt.currentPosition() - MANUAL_MOVE_STEPS); // Move para baixo
+  motorAlt.moveTo(
+      motorAlt.currentPosition() -
+      (long)lround(
+          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_ALT));
 }
 
 // Função para configurar as rotas no servidor
@@ -194,90 +265,104 @@ void configurarRotas()
 
   server.on("/home_az", HTTP_GET, []()
             {
-
-    // Desliga tracking
     g_tracking = false;
     cancelarNudgeTracking();
+
     g_homeAzDone = false;
 
-    // Se o switch já estiver pressionado
-    if (digitalRead(AZ_LIMIT_PIN) == LOW) {
-
-      motorAz.setSpeed(0);
-      motorAz.setCurrentPosition(0);
-      motorAz.moveTo(0);
-
-      g_homingAz = false;
-      g_homeAzDone = true;
-
-      server.send(
-        200,
-        "application/json",
-        "{\"ok\":true,\"status\":\"AZ já estava no HOME\",\"az\":0}"
-      );
-
-      return;
-    }
-
-    // Cancela qualquer movimento anterior
-    motorAz.moveTo(motorAz.currentPosition());
-
-    // Velocidade do homing
-    motorAz.setSpeed(HOME_AZ_SPEED);
+    motorAz.setSpeed(0);
+    motorAz.moveTo(
+        motorAz.currentPosition()
+    );
 
     homeAzInicio = millis();
+
     g_homingAz = true;
 
-    Serial.println("[HOME AZ] Iniciado.");
+    // Se já estiver apertando o switch,
+    // primeiro sai dele.
+    if (digitalRead(AZ_LIMIT_PIN) == LOW)
+    {
+        homeAzPhase = HOME_RELEASE_FIRST;
+
+        motorAz.setSpeed(
+            HOME_AZ_BACKOFF_SPEED
+        );
+
+        Serial.println(
+            "[HOME AZ] Switch já acionado. Recuando."
+        );
+    }
+    else
+    {
+        homeAzPhase = HOME_SEEK_FAST;
+
+        motorAz.setSpeed(
+            HOME_AZ_FAST_SPEED
+        );
+
+        Serial.println(
+            "[HOME AZ] Procurando switch."
+        );
+    }
+
 
     server.send(
-      200,
-      "application/json",
-      "{\"ok\":true,\"status\":\"HOME AZ iniciado\"}"
+        200,
+        "application/json",
+        "{\"ok\":true,\"status\":\"HOME AZ iniciado\"}"
     ); });
 
   server.on("/home_alt", HTTP_GET, []()
             {
+    g_tracking = false;
+    cancelarNudgeTracking();
 
-  g_homeAltDone = false;
-  g_tracking = false;
-  cancelarNudgeTracking();
-
-  // Se já estiver no fim de curso
-  if (digitalRead(ALT_LIMIT_PIN) == LOW) {
+    g_homeAltDone = false;
 
     motorAlt.setSpeed(0);
-    motorAlt.setCurrentPosition(0);
-    motorAlt.moveTo(0);
-
-    g_homingAlt = false;
-    g_homeAltDone = true;
-
-    server.send(
-      200,
-      "application/json",
-      "{\"ok\":true,\"status\":\"ALT já estava no HOME\",\"alt\":0}"
+    motorAlt.moveTo(
+        motorAlt.currentPosition()
     );
 
-    return;
-  }
+    homeAltInicio = millis();
 
-  // Cancela movimento anterior
-  motorAlt.moveTo(motorAlt.currentPosition());
+    g_homingAlt = true;
 
-  // Velocidade do Home
-  motorAlt.setSpeed(HOME_ALT_SPEED);
 
-  homeAltInicio = millis();
-  g_homingAlt = true;
+    if (digitalRead(ALT_LIMIT_PIN) == LOW)
+    {
+        homeAltPhase =
+            HOME_RELEASE_FIRST;
 
-  Serial.println("[HOME ALT] Iniciado.");
+        motorAlt.setSpeed(
+            HOME_ALT_BACKOFF_SPEED
+        );
 
-  server.send(
-    200,
-    "application/json",
-    "{\"ok\":true,\"status\":\"HOME ALT iniciado\"}"
-  ); });
+        Serial.println(
+            "[HOME ALT] Switch já acionado. Recuando."
+        );
+    }
+    else
+    {
+        homeAltPhase =
+            HOME_SEEK_FAST;
+
+        motorAlt.setSpeed(
+            HOME_ALT_FAST_SPEED
+        );
+
+        Serial.println(
+            "[HOME ALT] Procurando switch."
+        );
+    }
+
+
+    server.send(
+        200,
+        "application/json",
+        "{\"ok\":true,\"status\":\"HOME ALT iniciado\"}"
+    ); });
 
   server.on("/home_status", HTTP_GET, []()
             {
@@ -304,16 +389,372 @@ void configurarRotas()
   server.send(200, "application/json", json); });
 }
 
+void updateHomeAz()
+{
+  // =========================
+  // TIMEOUT
+  // =========================
+
+  if (
+      millis() - homeAzInicio >
+      HOME_AZ_TIMEOUT)
+  {
+    motorAz.setSpeed(0);
+
+    motorAz.moveTo(
+        motorAz.currentPosition());
+
+    g_homingAz = false;
+    g_homeAzDone = false;
+
+    homeAzPhase = HOME_IDLE;
+
+    Serial.println(
+        "[HOME AZ][ERRO] Timeout.");
+
+    return;
+  }
+
+  switch (homeAzPhase)
+  {
+
+    // =========================
+    // PROCURA RÁPIDA
+    // =========================
+
+  case HOME_SEEK_FAST:
+
+    if (
+        digitalRead(AZ_LIMIT_PIN) == LOW)
+    {
+      motorAz.setSpeed(
+          HOME_AZ_BACKOFF_SPEED);
+
+      homeAzPhase =
+          HOME_RELEASE_FIRST;
+
+      Serial.println(
+          "[HOME AZ] Primeiro toque.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+    // =========================
+    // ESPERA SWITCH SOLTAR
+    // =========================
+
+  case HOME_RELEASE_FIRST:
+
+    if (
+        digitalRead(AZ_LIMIT_PIN) == HIGH)
+    {
+      homeAzClearTarget =
+          motorAz.currentPosition() - homeAzClearanceSteps();
+
+      homeAzPhase =
+          HOME_CLEAR_FIRST;
+
+      Serial.println(
+          "[HOME AZ] Switch liberado.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+    // =========================
+    // FOLGA EXTRA
+    // =========================
+
+  case HOME_CLEAR_FIRST:
+
+    if (
+        motorAz.currentPosition() <= homeAzClearTarget)
+    {
+      motorAz.setSpeed(
+          HOME_AZ_SLOW_SPEED);
+
+      homeAzPhase =
+          HOME_SEEK_SLOW;
+
+      Serial.println(
+          "[HOME AZ] Aproximação lenta.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+    // =========================
+    // SEGUNDO TOQUE
+    // =========================
+
+  case HOME_SEEK_SLOW:
+
+    if (
+        digitalRead(AZ_LIMIT_PIN) == LOW)
+    {
+      motorAz.setSpeed(
+          HOME_AZ_BACKOFF_SPEED);
+
+      homeAzPhase =
+          HOME_RELEASE_FINAL;
+
+      Serial.println(
+          "[HOME AZ] Segundo toque.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+    // =========================
+    // SOLTA SWITCH NOVAMENTE
+    // =========================
+
+  case HOME_RELEASE_FINAL:
+
+    if (
+        digitalRead(AZ_LIMIT_PIN) == HIGH)
+    {
+      homeAzClearTarget =
+          motorAz.currentPosition() - homeAzClearanceSteps();
+
+      homeAzPhase =
+          HOME_CLEAR_FINAL;
+
+      Serial.println(
+          "[HOME AZ] Switch liberado final.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+    // =========================
+    // POSIÇÃO SEGURA FINAL
+    // =========================
+
+  case HOME_CLEAR_FINAL:
+
+    if (
+        motorAz.currentPosition() <= homeAzClearTarget)
+    {
+      motorAz.setSpeed(0);
+
+      // O ZERO passa a ser a
+      // posição segura, não
+      // o switch pressionado.
+      motorAz.setCurrentPosition(0);
+      motorAz.moveTo(0);
+
+      g_homingAz = false;
+      g_homeAzDone = true;
+
+      homeAzPhase = HOME_IDLE;
+
+      Serial.println(
+          "[HOME AZ] Concluído. Switch livre. AZ = 0.");
+    }
+    else
+    {
+      motorAz.runSpeed();
+    }
+
+    break;
+
+  default:
+
+    motorAz.setSpeed(0);
+
+    break;
+  }
+}
+
+void updateHomeAlt()
+{
+  if (
+      millis() - homeAltInicio >
+      HOME_ALT_TIMEOUT)
+  {
+    motorAlt.setSpeed(0);
+
+    motorAlt.moveTo(
+        motorAlt.currentPosition());
+
+    g_homingAlt = false;
+    g_homeAltDone = false;
+
+    homeAltPhase = HOME_IDLE;
+
+    Serial.println(
+        "[HOME ALT][ERRO] Timeout.");
+
+    return;
+  }
+
+  switch (homeAltPhase)
+  {
+
+  case HOME_SEEK_FAST:
+
+    if (
+        digitalRead(ALT_LIMIT_PIN) == LOW)
+    {
+      motorAlt.setSpeed(
+          HOME_ALT_BACKOFF_SPEED);
+
+      homeAltPhase =
+          HOME_RELEASE_FIRST;
+
+      Serial.println(
+          "[HOME ALT] Primeiro toque.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  case HOME_RELEASE_FIRST:
+
+    if (
+        digitalRead(ALT_LIMIT_PIN) == HIGH)
+    {
+      homeAltClearTarget =
+          motorAlt.currentPosition() + homeAltClearanceSteps();
+
+      homeAltPhase =
+          HOME_CLEAR_FIRST;
+
+      Serial.println(
+          "[HOME ALT] Switch liberado.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  case HOME_CLEAR_FIRST:
+
+    if (
+        motorAlt.currentPosition() >= homeAltClearTarget)
+    {
+      motorAlt.setSpeed(
+          HOME_ALT_SLOW_SPEED);
+
+      homeAltPhase =
+          HOME_SEEK_SLOW;
+
+      Serial.println(
+          "[HOME ALT] Aproximação lenta.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  case HOME_SEEK_SLOW:
+
+    if (
+        digitalRead(ALT_LIMIT_PIN) == LOW)
+    {
+      motorAlt.setSpeed(
+          HOME_ALT_BACKOFF_SPEED);
+
+      homeAltPhase =
+          HOME_RELEASE_FINAL;
+
+      Serial.println(
+          "[HOME ALT] Segundo toque.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  case HOME_RELEASE_FINAL:
+
+    if (
+        digitalRead(ALT_LIMIT_PIN) == HIGH)
+    {
+      homeAltClearTarget =
+          motorAlt.currentPosition() + homeAltClearanceSteps();
+
+      homeAltPhase =
+          HOME_CLEAR_FINAL;
+
+      Serial.println(
+          "[HOME ALT] Switch liberado final.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  case HOME_CLEAR_FINAL:
+
+    if (
+        motorAlt.currentPosition() >= homeAltClearTarget)
+    {
+      motorAlt.setSpeed(0);
+
+      motorAlt.setCurrentPosition(0);
+      motorAlt.moveTo(0);
+
+      g_homingAlt = false;
+      g_homeAltDone = true;
+
+      homeAltPhase = HOME_IDLE;
+
+      Serial.println(
+          "[HOME ALT] Concluído. Switch livre. ALT = 0.");
+    }
+    else
+    {
+      motorAlt.runSpeed();
+    }
+
+    break;
+
+  default:
+
+    motorAlt.setSpeed(0);
+
+    break;
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
 
   GPS_SERIAL.begin(
-    9600,
-    SERIAL_8N1,
-    GPS_RX_PIN,
-    GPS_TX_PIN
-  );
+      9600,
+      SERIAL_8N1,
+      GPS_RX_PIN,
+      GPS_TX_PIN);
 
   Serial.println("[GPS] UART iniciada em 9600 baud.");
 
@@ -383,76 +824,19 @@ void loop()
 {
   server.handleClient();
 
-    while (GPS_SERIAL.available())
+  while (GPS_SERIAL.available())
   {
-      char c = GPS_SERIAL.read();
-      Serial.write(c);
+    char c = GPS_SERIAL.read();
+    Serial.write(c);
   }
-
 
   if (g_homingAz)
   {
-    // Switch encontrado
-    if (digitalRead(AZ_LIMIT_PIN) == LOW)
-    {
-      motorAz.setSpeed(0);
-
-      g_homingAz = false;
-      g_homeAzDone = true;
-
-      motorAz.setCurrentPosition(0);
-      motorAz.moveTo(0);
-
-      Serial.println("[HOME AZ] Switch acionado. AZ = 0.");
-    }
-
-    // Segurança: timeout
-    else if (millis() - homeAzInicio > HOME_AZ_TIMEOUT)
-    {
-      motorAz.setSpeed(0);
-      motorAz.moveTo(motorAz.currentPosition());
-
-      g_homingAz = false;
-      g_homeAzDone = false;
-
-      Serial.println("[HOME AZ][ERRO] Timeout.");
-    }
-
-    else
-    {
-      motorAz.runSpeed();
-    }
+    updateHomeAz();
   }
   else if (g_homingAlt)
   {
-    if (digitalRead(ALT_LIMIT_PIN) == LOW)
-    {
-      motorAlt.setSpeed(0);
-
-      g_homingAlt = false;
-      g_homeAltDone = true;
-
-      motorAlt.setCurrentPosition(0);
-      motorAlt.moveTo(0);
-
-      Serial.println("[HOME ALT] Switch acionado. ALT = 0.");
-    }
-
-    else if (millis() - homeAltInicio > HOME_ALT_TIMEOUT)
-    {
-      motorAlt.setSpeed(0);
-      motorAlt.moveTo(motorAlt.currentPosition());
-
-      g_homingAlt = false;
-      g_homeAltDone = false;
-
-      Serial.println("[HOME ALT][ERRO] Timeout.");
-    }
-
-    else
-    {
-      motorAlt.runSpeed();
-    }
+    updateHomeAlt();
   }
   else if (g_tracking)
   {
