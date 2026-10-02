@@ -39,6 +39,16 @@ static const float GEAR_RATIO_ALT_REAL = 18.75f; // ALT: motor 16 dentes, coroa 
 static const float MANUAL_MOVE_DEG =
     1.0f;
 
+// Limites seguros também para o controle manual
+static const float MANUAL_AZ_MIN_DEG = 0.0f;
+static const float MANUAL_AZ_MAX_DEG = 350.0f;
+
+static const float MANUAL_ALT_MIN_DEG = 0.0f;
+static const float MANUAL_ALT_MAX_DEG = 90.0f;
+
+// No HOME da ALT o tubo está 27° abaixo do horizonte
+static const float MANUAL_ALT_HOME_DEG = -27.0f;
+
 static const float GEAR_RATIO_AZ =
     BENCH_MODE ? 1.0f : GEAR_RATIO_AZ_REAL;
 
@@ -154,119 +164,183 @@ long homeAltClearanceSteps()
 
 bool limiteAzAcionado()
 {
-    return digitalRead(AZ_LIMIT_PIN) == LOW;
+  return digitalRead(AZ_LIMIT_PIN) == LOW;
 }
 
 bool limiteAltAcionado()
 {
-    return digitalRead(ALT_LIMIT_PIN) == LOW;
+  return digitalRead(ALT_LIMIT_PIN) == LOW;
 }
-
 
 // Para imediatamente sem perder o valor
 // da posição lógica atual.
 void pararAzImediato()
 {
-    long posicaoAtual =
-        motorAz.currentPosition();
+  long posicaoAtual =
+      motorAz.currentPosition();
 
-    motorAz.setCurrentPosition(
-        posicaoAtual
-    );
+  motorAz.setCurrentPosition(
+      posicaoAtual);
 
-    motorAz.moveTo(
-        posicaoAtual
-    );
+  motorAz.moveTo(
+      posicaoAtual);
 
-    motorAz.setSpeed(0);
+  motorAz.setSpeed(0);
 }
-
 
 void pararAltImediato()
 {
-    long posicaoAtual =
-        motorAlt.currentPosition();
+  long posicaoAtual =
+      motorAlt.currentPosition();
 
-    motorAlt.setCurrentPosition(
-        posicaoAtual
-    );
+  motorAlt.setCurrentPosition(
+      posicaoAtual);
 
-    motorAlt.moveTo(
-        posicaoAtual
-    );
+  motorAlt.moveTo(
+      posicaoAtual);
 
-    motorAlt.setSpeed(0);
+  motorAlt.setSpeed(0);
 }
-
 
 // Proteção usada em movimentos de posição:
 // manual e GoTo.
 void protegerLimitesPosicionais()
 {
-    // AZ:
-    // posição positiva = direção do switch.
-    if (
-        !g_homingAz &&
-        limiteAzAcionado() &&
-        motorAz.distanceToGo() > 0
-    )
-    {
-        pararAzImediato();
+  // AZ:
+  // posição positiva = direção do switch.
+  if (
+      !g_homingAz &&
+      limiteAzAcionado() &&
+      motorAz.distanceToGo() > 0)
+  {
+    pararAzImediato();
 
-        Serial.println(
-            "[SEGURANCA] AZ bloqueado pelo fim de curso."
-        );
-    }
+    Serial.println(
+        "[SEGURANCA] AZ bloqueado pelo fim de curso.");
+  }
 
+  // ALT:
+  // posição negativa = direção do switch.
+  if (
+      !g_homingAlt &&
+      limiteAltAcionado() &&
+      motorAlt.distanceToGo() < 0)
+  {
+    pararAltImediato();
 
-    // ALT:
-    // posição negativa = direção do switch.
-    if (
-        !g_homingAlt &&
-        limiteAltAcionado() &&
-        motorAlt.distanceToGo() < 0
-    )
-    {
-        pararAltImediato();
-
-        Serial.println(
-            "[SEGURANCA] ALT bloqueado pelo fim de curso."
-        );
-    }
+    Serial.println(
+        "[SEGURANCA] ALT bloqueado pelo fim de curso.");
+  }
 }
 
-// Funções para mover os motores manualmente
-// Funções para mover os motores manualmente
-void moverDireita()
+bool moverDireita()
 {
-  motorAz.moveTo(
+  long novoAlvo =
       motorAz.currentPosition() +
       (long)lround(
-          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_AZ));
+          MANUAL_MOVE_DEG *
+          PASSOS_POR_GRAU_AZ);
+
+  float novoAzDeg =
+      -novoAlvo /
+      PASSOS_POR_GRAU_AZ;
+
+  // DIREITA diminui o AZ lógico.
+  // Não pode passar de 0°.
+  if (novoAzDeg < MANUAL_AZ_MIN_DEG)
+  {
+    Serial.println(
+        "[SEGURANCA] Manual AZ bloqueado em 0°.");
+
+    return false;
+  }
+
+  motorAz.moveTo(novoAlvo);
+
+  return true;
 }
 
-void moverEsquerda()
+bool moverEsquerda()
 {
-  motorAz.moveTo(
+  long novoAlvo =
       motorAz.currentPosition() -
       (long)lround(
-          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_AZ));
+          MANUAL_MOVE_DEG *
+          PASSOS_POR_GRAU_AZ);
+
+  float novoAzDeg =
+      -novoAlvo /
+      PASSOS_POR_GRAU_AZ;
+
+  // ESQUERDA aumenta o AZ lógico.
+  // Não pode passar de 350°.
+  if (novoAzDeg > MANUAL_AZ_MAX_DEG)
+  {
+    Serial.println(
+        "[SEGURANCA] Manual AZ bloqueado em 350°.");
+
+    return false;
+  }
+
+  motorAz.moveTo(novoAlvo);
+
+  return true;
 }
 
-void moverCima()
+bool moverCima()
 {
-  motorAlt.moveTo(
+  long novoAlvo =
       motorAlt.currentPosition() +
       (long)lround(
-          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_ALT));
+          MANUAL_MOVE_DEG *
+          PASSOS_POR_GRAU_ALT);
+
+  float novoAltDeg =
+      MANUAL_ALT_HOME_DEG +
+      novoAlvo /
+          PASSOS_POR_GRAU_ALT;
+
+  // CIMA aumenta ALT.
+  // Não pode passar de 90°.
+  if (novoAltDeg > MANUAL_ALT_MAX_DEG)
+  {
+    Serial.println(
+        "[SEGURANCA] Manual ALT bloqueado em 90°.");
+
+    return false;
+  }
+
+  motorAlt.moveTo(novoAlvo);
+
+  return true;
 }
 
-void moverBaixo()
+bool moverBaixo()
 {
-  motorAlt.moveTo(
+  long novoAlvo =
       motorAlt.currentPosition() -
       (long)lround(
-          MANUAL_MOVE_DEG * PASSOS_POR_GRAU_ALT));
+          MANUAL_MOVE_DEG *
+          PASSOS_POR_GRAU_ALT);
+
+  float novoAltDeg =
+      MANUAL_ALT_HOME_DEG +
+      novoAlvo /
+          PASSOS_POR_GRAU_ALT;
+
+  // BAIXO diminui ALT.
+  // Não pode passar abaixo do horizonte.
+  if (novoAltDeg < MANUAL_ALT_MIN_DEG)
+  {
+    Serial.println(
+        "[SEGURANCA] Manual ALT bloqueado em 0°.");
+
+    return false;
+  }
+
+  motorAlt.moveTo(novoAlvo);
+
+  return true;
 }
 
 // Função para configurar as rotas no servidor
@@ -280,7 +354,8 @@ void configurarRotas()
     cancelarNudgeTracking();
 
     // Se estava fazendo HOME, cancela somente o modo HOME
-    if (g_homingAz) {
+    if (g_homingAz)
+    {
       g_homingAz = false;
       g_homeAzDone = false;
 
@@ -288,7 +363,8 @@ void configurarRotas()
       motorAz.moveTo(motorAz.currentPosition());
     }
 
-    if (g_homingAlt) {
+    if (g_homingAlt)
+    {
       g_homingAlt = false;
       g_homeAltDone = false;
 
@@ -296,19 +372,50 @@ void configurarRotas()
       motorAlt.moveTo(motorAlt.currentPosition());
     }
 
+    bool movimentoAceito = true;
 
+    if (comando == "direita")
+    {
+      movimentoAceito = moverDireita();
+    }
+    else if (comando == "esquerda")
+    {
+      movimentoAceito = moverEsquerda();
+    }
+    else if (comando == "cima")
+    {
+      movimentoAceito = moverCima();
+    }
+    else if (comando == "baixo")
+    {
+      movimentoAceito = moverBaixo();
+    }
+    else
+    {
+      server.send(
+          400,
+          "application/json",
+          "{\"ok\":false,\"erro\":\"Comando manual invalido\"}");
 
-    if (comando == "direita") {
-      moverDireita();  // Move para a direita
-    } else if (comando == "esquerda") {
-      moverEsquerda(); // Move para a esquerda
-    } else if (comando == "cima") {
-      moverCima();     // Move para cima
-    } else if (comando == "baixo") {
-      moverBaixo();    // Move para baixo
+      return;
     }
 
-    server.send(200, "application/json", "{\"status\": \"movimento realizado\", \"comando\": \"" + comando + "\"}"); });
+    if (!movimentoAceito)
+    {
+      server.send(
+          422,
+          "application/json",
+          "{\"ok\":false,\"erro\":\"Movimento manual bloqueado por limite virtual\"}");
+
+      return;
+    }
+
+    server.send(
+        200,
+        "application/json",
+        "{\"ok\":true,\"status\":\"movimento realizado\",\"comando\":\"" +
+            comando +
+            "\"}"); });
 
   server.on("/limit_az", HTTP_GET, []()
             {
