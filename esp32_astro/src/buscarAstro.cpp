@@ -140,6 +140,72 @@ void atualizarTracking()
     // tracking astronômico + eventual ajuste manual
     aplicarVelocidadesTracking();
 
+
+    // ============================================
+    // SOFT LIMIT DURANTE TRACKING / NUDGE
+    // ============================================
+
+    float azAtualDeg =
+        -motorAz.currentPosition() /
+        PASSOS_POR_GRAU_AZ;
+
+    float altAtualDeg =
+        motorAlt.currentPosition() /
+        PASSOS_POR_GRAU_ALT;
+
+
+    // AZ:
+    //
+    // motor positivo = diminui AZ astronômico
+    // motor negativo = aumenta AZ astronômico
+
+    bool azSaindoPeloMinimo =
+        azAtualDeg <= AZ_MIN_DEG &&
+        motorAz.speed() > 0.0f;
+
+    bool azSaindoPeloMaximo =
+        azAtualDeg >= AZ_MAX_DEG &&
+        motorAz.speed() < 0.0f;
+
+
+    // ALT:
+    //
+    // motor negativo = diminui ALT
+    // motor positivo = aumenta ALT
+
+    bool altSaindoPeloMinimo =
+        altAtualDeg <= ALT_MIN_DEG &&
+        motorAlt.speed() < 0.0f;
+
+    bool altSaindoPeloMaximo =
+        altAtualDeg >= ALT_MAX_DEG &&
+        motorAlt.speed() > 0.0f;
+
+
+    if (
+        azSaindoPeloMinimo ||
+        azSaindoPeloMaximo ||
+        altSaindoPeloMinimo ||
+        altSaindoPeloMaximo
+    )
+    {
+        pararAzImediato();
+        pararAltImediato();
+
+        g_trackSpeedAzSteps = 0.0f;
+        g_trackSpeedAltSteps = 0.0f;
+
+        cancelarNudgeTracking();
+
+        g_tracking = false;
+
+        Serial.println(
+            "[SEGURANCA] Tracking interrompido por limite virtual."
+        );
+
+        return;
+    }
+
     // ============================================
     // HARD LIMIT DURANTE TRACKING / NUDGE
     // ============================================
@@ -317,7 +383,7 @@ void configurarBuscarAstro()
     }
 
     // Converte deg/s -> passos/s
-    const float vAz_steps_s  = vAz_deg_s  * PASSOS_POR_GRAU_AZ;
+    const float vAz_steps_s  = -vAz_deg_s  * PASSOS_POR_GRAU_AZ;
     const float vAlt_steps_s = vAlt_deg_s * PASSOS_POR_GRAU_ALT;
 
     // Ativa modo tracking por velocidade
