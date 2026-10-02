@@ -60,7 +60,7 @@ _track_state = {
 #
 # Quando tivermos redução/microstepping,
 # diminuiremos este valor.
-NUDGE_STEP_DEG = 1.8
+NUDGE_STEP_DEG = 0.25
 
 # =========================
 # LIMITES DE SEGURANÇA

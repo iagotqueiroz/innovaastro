@@ -63,7 +63,7 @@ function buscarAstro() {
             </div>
 
             <div class="text-sm text-gray-500 mb-3">
-                Cada clique move 1,8° no modo bancada.
+                Cada clique faz um ajuste fino de 0,25°.
             </div>
 
             <div class="grid grid-cols-3 gap-2 max-w-52">
