@@ -3,7 +3,7 @@
 #include <math.h> // llround
 
 // ====== IMPORTA AS GLOBAIS DO main.cpp ======
-extern WebServer    server;
+extern WebServer server;
 extern AccelStepper motorAz;
 extern AccelStepper motorAlt;
 
@@ -21,6 +21,16 @@ extern bool limiteAltAcionado();
 
 extern void pararAzImediato();
 extern void pararAltImediato();
+
+// ============================================
+// LIMITES MECÂNICOS SEGUROS
+// ============================================
+
+static const float AZ_MIN_DEG = 0.0f;
+static const float AZ_MAX_DEG = 350.0f;
+
+static const float ALT_MIN_DEG = 0.0f;
+static const float ALT_MAX_DEG = 90.0f;
 
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
@@ -48,7 +58,6 @@ static bool g_nudgeAltActive = false;
 static long g_nudgeAltTarget = 0;
 static int g_nudgeAltDirection = 0;
 
-
 static void aplicarVelocidadesTracking()
 {
     float velocidadeAz = g_trackSpeedAzSteps;
@@ -74,7 +83,6 @@ static void aplicarVelocidadesTracking()
     motorAlt.setSpeed(velocidadeAlt);
 }
 
-
 void cancelarNudgeTracking()
 {
     g_nudgeAzActive = false;
@@ -83,7 +91,6 @@ void cancelarNudgeTracking()
     g_nudgeAzDirection = 0;
     g_nudgeAltDirection = 0;
 }
-
 
 void atualizarTracking()
 {
@@ -133,7 +140,6 @@ void atualizarTracking()
     // tracking astronômico + eventual ajuste manual
     aplicarVelocidadesTracking();
 
-
     // ============================================
     // HARD LIMIT DURANTE TRACKING / NUDGE
     // ============================================
@@ -144,18 +150,15 @@ void atualizarTracking()
         limiteAzAcionado() &&
         motorAz.speed() > 0.0f;
 
-
     // ALT:
     // velocidade negativa aponta para o switch.
     bool altTentandoEntrarNoLimite =
         limiteAltAcionado() &&
         motorAlt.speed() < 0.0f;
 
-
     if (
         azTentandoEntrarNoLimite ||
-        altTentandoEntrarNoLimite
-    )
+        altTentandoEntrarNoLimite)
     {
         // Se qualquer eixo atingir um hard limit
         // durante tracking, interrompe todo o
@@ -172,22 +175,21 @@ void atualizarTracking()
         g_tracking = false;
 
         Serial.println(
-            "[SEGURANCA] Tracking interrompido por fim de curso."
-        );
+            "[SEGURANCA] Tracking interrompido por fim de curso.");
 
         return;
     }
-
 
     motorAz.runSpeed();
     motorAlt.runSpeed();
 }
 
-
 // ====== CONFIGURA ROTAS ======
-void configurarBuscarAstro() {
-  // --------- GoTo absoluto (usado só no início) ----------
-  server.on("/mover", HTTP_GET, []() {
+void configurarBuscarAstro()
+{
+    // --------- GoTo absoluto (usado só no início) ----------
+    server.on("/mover", HTTP_GET, []()
+              {
     if (!server.hasArg("az") || !server.hasArg("alt")) {
       server.send(400, "text/plain", "Parâmetros ausentes (az, alt)");
       return;
@@ -196,15 +198,86 @@ void configurarBuscarAstro() {
     const float grausAz  = server.arg("az").toFloat();
     const float grausAlt = server.arg("alt").toFloat();
 
+    
+    // ============================================
+    // VALIDA LIMITES MECÂNICOS
+    // ============================================
+
+    if (
+        grausAz < AZ_MIN_DEG ||
+        grausAz > AZ_MAX_DEG
+    )
+    {
+        String erro =
+            "{\"ok\":false,"
+            "\"erro\":\"AZ fora da faixa segura\","
+            "\"min\":0,"
+            "\"max\":350}";
+
+        Serial.println(
+            "[SEGURANCA] GoTo AZ fora da faixa."
+        );
+
+        server.send(
+            422,
+            "application/json",
+            erro
+        );
+
+        return;
+    }
+
+
+    if (
+        grausAlt < ALT_MIN_DEG ||
+        grausAlt > ALT_MAX_DEG
+    )
+    {
+        String erro =
+            "{\"ok\":false,"
+            "\"erro\":\"ALT fora da faixa segura\","
+            "\"min\":0,"
+            "\"max\":90}";
+
+        Serial.println(
+            "[SEGURANCA] GoTo ALT fora da faixa."
+        );
+
+        server.send(
+            422,
+            "application/json",
+            erro
+        );
+
+        return;
+    }
+
+
+    // ============================================
+    // CONVERSÃO CÉU -> MOTOR
+    // ============================================
+
+    // AZ:
+    // no telescópio real,
+    // graus astronômicos positivos
+    // correspondem a passos NEGATIVOS.
+    //
+    // Isso faz o eixo sair do HOME
+    // para o lado seguro.
     long alvoAzPassos = (long)llround(
-      (double)grausAz *
-      (double)PASSOS_POR_GRAU_AZ
+        -(double)grausAz *
+        (double)PASSOS_POR_GRAU_AZ
     );
 
+
+    // ALT:
+    // graus positivos correspondem
+    // a passos positivos.
     long alvoAltPassos = (long)llround(
-      (double)grausAlt *
-      (double)PASSOS_POR_GRAU_ALT
+        (double)grausAlt *
+        (double)PASSOS_POR_GRAU_ALT
     );
+
 
     // Em GoTo, usamos controle de posição (run). Desliga tracking.
     g_homingAz = false;
@@ -224,12 +297,12 @@ void configurarBuscarAstro() {
     String msg = "GoTo AZ: " + String(grausAz, 3) + "° (" + String(alvoAzPassos) +
                  " passos), ALT: " + String(grausAlt, 3) + "° (" + String(alvoAltPassos) + " passos)";
     Serial.println("[/mover] " + msg);
-    server.send(200, "text/plain", msg);
-  });
+    server.send(200, "text/plain", msg); });
 
-  // --------- Seguimento por VELOCIDADE contínua ----------
-  // Recebe velocidades em deg/s e ativa modo runSpeed()
-  server.on("/set_speed", HTTP_GET, []() {
+    // --------- Seguimento por VELOCIDADE contínua ----------
+    // Recebe velocidades em deg/s e ativa modo runSpeed()
+    server.on("/set_speed", HTTP_GET, []()
+              {
     if (!server.hasArg("vaz") || !server.hasArg("valt")) {
       server.send(400, "text/plain", "Parâmetros ausentes (vaz, valt) em deg/s");
       return;
@@ -264,11 +337,10 @@ void configurarBuscarAstro() {
     String msg = "speed AZ=" + String(vAz_deg_s, 6) + " deg/s (" + String(vAz_steps_s, 3) + " sps), "
                  "ALT=" + String(vAlt_deg_s, 6) + " deg/s (" + String(vAlt_steps_s, 3) + " sps)";
     Serial.println("[/set_speed] " + msg);
-    server.send(200, "text/plain", msg);
-  });
+    server.send(200, "text/plain", msg); });
 
-
-  server.on("/nudge", HTTP_GET, []() {
+    server.on("/nudge", HTTP_GET, []()
+              {
 
     if (!g_tracking)
     {
@@ -403,12 +475,11 @@ void configurarBuscarAstro() {
         200,
         "application/json",
         json
-    );
-});
+    ); });
 
-
-  // (Opcional) Pausa o tracking (zera speed)
-  server.on("/track_off", HTTP_GET, []() {
+    // (Opcional) Pausa o tracking (zera speed)
+    server.on("/track_off", HTTP_GET, []()
+              {
 
     g_tracking = false;
 
@@ -424,10 +495,10 @@ void configurarBuscarAstro() {
         200,
         "text/plain",
         "tracking off"
-    );
-  });
+    ); });
 
-  server.on("/stop", HTTP_GET, []() {
+    server.on("/stop", HTTP_GET, []()
+              {
 
     // Sai imediatamente do modo tracking
     g_tracking = false;
@@ -449,13 +520,14 @@ void configurarBuscarAstro() {
     Serial.println("[STOP] Movimento interrompido.");
 
     server.send(200, "application/json",
-                "{\"ok\":true,\"status\":\"stopped\"}");
-  });
+                "{\"ok\":true,\"status\":\"stopped\"}"); });
 
-  // Saúde
-  server.on("/ping", HTTP_GET, []() { server.send(200, "text/plain", "pong"); });
+    // Saúde
+    server.on("/ping", HTTP_GET, []()
+              { server.send(200, "text/plain", "pong"); });
 
-  server.on("/motion_status", HTTP_GET, []() {
+    server.on("/motion_status", HTTP_GET, []()
+              {
 
   long atualAz = motorAz.currentPosition();
   long atualAlt = motorAlt.currentPosition();
@@ -466,8 +538,10 @@ void configurarBuscarAstro() {
   long distanciaAz = motorAz.distanceToGo();
   long distanciaAlt = motorAlt.distanceToGo();
 
-  float azGraus = atualAz / PASSOS_POR_GRAU_AZ;
-  float altGraus = atualAlt / PASSOS_POR_GRAU_ALT;
+
+    float azGraus = -atualAz / PASSOS_POR_GRAU_AZ;
+
+    float altGraus =atualAlt / PASSOS_POR_GRAU_ALT;
 
   String json = "{";
 
@@ -488,16 +562,13 @@ void configurarBuscarAstro() {
 
   json += "}";
 
-  server.send(200, "application/json", json);
-});
+  server.send(200, "application/json", json); });
 }
 
-
-
-//Versão boa 02
-// #include <WebServer.h>
-// #include <AccelStepper.h>
-// #include <math.h> // lround
+// Versão boa 02
+//  #include <WebServer.h>
+//  #include <AccelStepper.h>
+//  #include <math.h> // lround
 
 // // ====== IMPORTA AS GLOBAIS DO main.cpp ======
 // extern WebServer    server;
@@ -547,11 +618,9 @@ void configurarBuscarAstro() {
 //   });
 // }
 
-
-
-//Versão boa 01
-// #include <WebServer.h>
-// #include <AccelStepper.h>
+// Versão boa 01
+//  #include <WebServer.h>
+//  #include <AccelStepper.h>
 
 // // ====== IMPORTA AS GLOBAIS DO main.cpp ======
 // extern WebServer   server;
@@ -640,9 +709,6 @@ void configurarBuscarAstro() {
 //   });
 // }
 
-
-
-
 // #include <WebServer.h>
 // #include <AccelStepper.h>
 
@@ -670,7 +736,7 @@ void configurarBuscarAstro() {
 //       // Inverte direção se necessário
 //       float passosAz = deltaAz * passosPorGrau;  // Inverte a direção do motor de azimute
 //       float passosAlt = deltaAlt * passosPorGrau;
-      
+
 //       //Inverte a direção do motor de altitude
 
 //       motorAz.moveTo(passosAz);
@@ -685,8 +751,6 @@ void configurarBuscarAstro() {
 //     }
 //   });
 // }
-
-
 
 // #include <WebServer.h>
 // #include <AccelStepper.h>
