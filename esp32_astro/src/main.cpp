@@ -33,7 +33,7 @@ static const bool BENCH_MODE = false;
 // AZ: motor 16 dentes, coroa ~178 dentes => 178/16 = 11.125
 // ALT: motor 16 dentes, coroa 112 dentes => 112/16 = 7.0
 static const float GEAR_RATIO_AZ_REAL = 24.0f;
-static const float GEAR_RATIO_ALT_REAL = 15.0f;
+static const float GEAR_RATIO_ALT_REAL = 18.75f; // ALT: motor 16 dentes, coroa 300 dentes => 300/16 = 18.75
 
 // Movimento manual
 static const float MANUAL_MOVE_DEG =

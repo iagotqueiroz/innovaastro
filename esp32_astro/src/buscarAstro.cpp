@@ -32,6 +32,10 @@ static const float AZ_MAX_DEG = 350.0f;
 static const float ALT_MIN_DEG = 0.0f;
 static const float ALT_MAX_DEG = 90.0f;
 
+// No HOME mecânico, o tubo está
+// aproximadamente 27° abaixo do horizonte.
+static const float ALT_HOME_DEG = -27.0f;
+
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
 
@@ -149,9 +153,7 @@ void atualizarTracking()
         -motorAz.currentPosition() /
         PASSOS_POR_GRAU_AZ;
 
-    float altAtualDeg =
-        motorAlt.currentPosition() /
-        PASSOS_POR_GRAU_ALT;
+    float altAtualDeg = ALT_HOME_DEG + motorAlt.currentPosition() / PASSOS_POR_GRAU_ALT;
 
 
     // AZ:
@@ -340,10 +342,12 @@ void configurarBuscarAstro()
     // graus positivos correspondem
     // a passos positivos.
     long alvoAltPassos = (long)llround(
-        (double)grausAlt *
+        (
+            (double)grausAlt -
+            (double)ALT_HOME_DEG
+        ) *
         (double)PASSOS_POR_GRAU_ALT
     );
-
 
     // Em GoTo, usamos controle de posição (run). Desliga tracking.
     g_homingAz = false;
@@ -480,9 +484,7 @@ void configurarBuscarAstro()
         -novoAlvoAz /
         PASSOS_POR_GRAU_AZ;
 
-    float novoAltDeg =
-        novoAlvoAlt /
-        PASSOS_POR_GRAU_ALT;
+    float novoAltDeg = ALT_HOME_DEG + novoAlvoAlt / PASSOS_POR_GRAU_ALT;
 
 
     // ---------- AZ ----------
@@ -712,7 +714,7 @@ void configurarBuscarAstro()
 
     float azGraus = -atualAz / PASSOS_POR_GRAU_AZ;
 
-    float altGraus =atualAlt / PASSOS_POR_GRAU_ALT;
+    float altGraus = ALT_HOME_DEG + atualAlt / PASSOS_POR_GRAU_ALT;
 
   String json = "{";
 

@@ -26,7 +26,7 @@ def mover_baixo():
 
 
 def executar_home():
-    timeout_eixo = 18
+    timeout_eixo = 125
 
     def ler_status_home():
         resposta = requests.get(
