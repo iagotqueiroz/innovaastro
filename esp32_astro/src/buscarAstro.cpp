@@ -452,21 +452,131 @@ void configurarBuscarAstro()
     }
 
 
+    // ============================================
+    // VALIDA O ALVO DO NUDGE ANTES DE MOVIMENTAR
+    // ============================================
+
+    long baseAz =
+        g_nudgeAzActive
+            ? g_nudgeAzTarget
+            : motorAz.currentPosition();
+
+    long baseAlt =
+        g_nudgeAltActive
+            ? g_nudgeAltTarget
+            : motorAlt.currentPosition();
+
+
+    long novoAlvoAz =
+        baseAz + deltaAzPassos;
+
+    long novoAlvoAlt =
+        baseAlt + deltaAltPassos;
+
+
+    // Converte o possível novo alvo para
+    // coordenadas astronômicas.
+    float novoAzDeg =
+        -novoAlvoAz /
+        PASSOS_POR_GRAU_AZ;
+
+    float novoAltDeg =
+        novoAlvoAlt /
+        PASSOS_POR_GRAU_ALT;
+
+
+    // ---------- AZ ----------
+
+    if (
+        deltaAzPassos != 0 &&
+        (
+            novoAzDeg < AZ_MIN_DEG ||
+            novoAzDeg > AZ_MAX_DEG
+        )
+    )
+    {
+        Serial.println(
+            "[SEGURANCA] NUDGE AZ bloqueado por limite virtual."
+        );
+
+        server.send(
+            422,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"NUDGE AZ fora da faixa segura\"}"
+        );
+
+        return;
+    }
+
+
+    // ---------- ALT ----------
+
+    if (
+        deltaAltPassos != 0 &&
+        (
+            novoAltDeg < ALT_MIN_DEG ||
+            novoAltDeg > ALT_MAX_DEG
+        )
+    )
+    {
+        Serial.println(
+            "[SEGURANCA] NUDGE ALT bloqueado por limite virtual."
+        );
+
+        server.send(
+            422,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"NUDGE ALT fora da faixa segura\"}"
+        );
+
+        return;
+    }
+
+
+    // ============================================
+    // HARD LIMIT ANTES DO NUDGE
+    // ============================================
+
+    // AZ positivo no motor = DIREITA = switch.
+    if (
+        deltaAzPassos > 0 &&
+        limiteAzAcionado()
+    )
+    {
+        server.send(
+            409,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"NUDGE AZ bloqueado pelo fim de curso\"}"
+        );
+
+        return;
+    }
+
+
+    // ALT negativo no motor = BAIXO = switch.
+    if (
+        deltaAltPassos < 0 &&
+        limiteAltAcionado()
+    )
+    {
+        server.send(
+            409,
+            "application/json",
+            "{\"ok\":false,\"erro\":\"NUDGE ALT bloqueado pelo fim de curso\"}"
+        );
+
+        return;
+    }
+
+
     // =========================
     // NUDGE AZ
     // =========================
 
     if (deltaAzPassos != 0)
     {
-        // Se já existe um ajuste em andamento,
-        // soma ao alvo anterior.
-        long baseAz =
-            g_nudgeAzActive
-                ? g_nudgeAzTarget
-                : motorAz.currentPosition();
-
         g_nudgeAzTarget =
-            baseAz + deltaAzPassos;
+            novoAlvoAz;
 
         long restante =
             g_nudgeAzTarget -
@@ -490,13 +600,8 @@ void configurarBuscarAstro()
 
     if (deltaAltPassos != 0)
     {
-        long baseAlt =
-            g_nudgeAltActive
-                ? g_nudgeAltTarget
-                : motorAlt.currentPosition();
-
         g_nudgeAltTarget =
-            baseAlt + deltaAltPassos;
+            novoAlvoAlt;
 
         long restante =
             g_nudgeAltTarget -
