@@ -148,6 +148,93 @@ long homeAltClearanceSteps()
   return passos < 1 ? 1 : passos;
 }
 
+// =====================================================
+// PROTEÇÃO PERMANENTE DOS FINS DE CURSO
+// =====================================================
+
+bool limiteAzAcionado()
+{
+    return digitalRead(AZ_LIMIT_PIN) == LOW;
+}
+
+bool limiteAltAcionado()
+{
+    return digitalRead(ALT_LIMIT_PIN) == LOW;
+}
+
+
+// Para imediatamente sem perder o valor
+// da posição lógica atual.
+void pararAzImediato()
+{
+    long posicaoAtual =
+        motorAz.currentPosition();
+
+    motorAz.setCurrentPosition(
+        posicaoAtual
+    );
+
+    motorAz.moveTo(
+        posicaoAtual
+    );
+
+    motorAz.setSpeed(0);
+}
+
+
+void pararAltImediato()
+{
+    long posicaoAtual =
+        motorAlt.currentPosition();
+
+    motorAlt.setCurrentPosition(
+        posicaoAtual
+    );
+
+    motorAlt.moveTo(
+        posicaoAtual
+    );
+
+    motorAlt.setSpeed(0);
+}
+
+
+// Proteção usada em movimentos de posição:
+// manual e GoTo.
+void protegerLimitesPosicionais()
+{
+    // AZ:
+    // posição positiva = direção do switch.
+    if (
+        !g_homingAz &&
+        limiteAzAcionado() &&
+        motorAz.distanceToGo() > 0
+    )
+    {
+        pararAzImediato();
+
+        Serial.println(
+            "[SEGURANCA] AZ bloqueado pelo fim de curso."
+        );
+    }
+
+
+    // ALT:
+    // posição negativa = direção do switch.
+    if (
+        !g_homingAlt &&
+        limiteAltAcionado() &&
+        motorAlt.distanceToGo() < 0
+    )
+    {
+        pararAltImediato();
+
+        Serial.println(
+            "[SEGURANCA] ALT bloqueado pelo fim de curso."
+        );
+    }
+}
+
 // Funções para mover os motores manualmente
 // Funções para mover os motores manualmente
 void moverDireita()
@@ -844,6 +931,8 @@ void loop()
   }
   else
   {
+    protegerLimitesPosicionais();
+
     motorAz.run();
     motorAlt.run();
   }

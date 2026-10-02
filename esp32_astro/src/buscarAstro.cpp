@@ -16,6 +16,12 @@ extern long ultimaMetaAltPassos;
 extern volatile bool g_homingAz;
 extern volatile bool g_homingAlt;
 
+extern bool limiteAzAcionado();
+extern bool limiteAltAcionado();
+
+extern void pararAzImediato();
+extern void pararAltImediato();
+
 // Flag global (definida aqui, usada no main.cpp)
 volatile bool g_tracking = false;
 
@@ -126,6 +132,52 @@ void atualizarTracking()
     // Combina:
     // tracking astronômico + eventual ajuste manual
     aplicarVelocidadesTracking();
+
+
+    // ============================================
+    // HARD LIMIT DURANTE TRACKING / NUDGE
+    // ============================================
+
+    // AZ:
+    // velocidade positiva aponta para o switch.
+    bool azTentandoEntrarNoLimite =
+        limiteAzAcionado() &&
+        motorAz.speed() > 0.0f;
+
+
+    // ALT:
+    // velocidade negativa aponta para o switch.
+    bool altTentandoEntrarNoLimite =
+        limiteAltAcionado() &&
+        motorAlt.speed() < 0.0f;
+
+
+    if (
+        azTentandoEntrarNoLimite ||
+        altTentandoEntrarNoLimite
+    )
+    {
+        // Se qualquer eixo atingir um hard limit
+        // durante tracking, interrompe todo o
+        // acompanhamento por segurança.
+
+        pararAzImediato();
+        pararAltImediato();
+
+        g_trackSpeedAzSteps = 0.0f;
+        g_trackSpeedAltSteps = 0.0f;
+
+        cancelarNudgeTracking();
+
+        g_tracking = false;
+
+        Serial.println(
+            "[SEGURANCA] Tracking interrompido por fim de curso."
+        );
+
+        return;
+    }
+
 
     motorAz.runSpeed();
     motorAlt.runSpeed();
