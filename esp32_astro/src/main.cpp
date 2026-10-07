@@ -10,10 +10,10 @@ HardwareSerial GPS_SERIAL(2);
 #define GPS_TX_PIN 17
 
 // =================== AJUSTES DO SEU HARDWARE ===================
-#define DIR_AZ 26
-#define STEP_AZ 25
-#define DIR_ALT 19
-#define STEP_ALT 18
+#define DIR_AZ 19
+#define STEP_AZ 18
+#define DIR_ALT 26
+#define STEP_ALT 25
 
 #define AZ_LIMIT_PIN 32
 #define ALT_LIMIT_PIN 33
@@ -70,8 +70,14 @@ WebServer server(80);
 
 // =================== REDE ===================
 // Troque para sua rede se necessário
-const char *ssid = "BRUP_MJV_2G";
-const char *password = "12345678";
+const char *ssid = "CASA LUNA 3 TORRE A";
+const char *password = "LUNA2023";
+
+// const char *ssid = "iPhone";
+// const char *password = "45301510";
+
+// const char *ssid = "BRUP_MJV_2G";
+// const char *password = "12345678";
 
 // const char *ssid = "Queiroz 2.4ghz";
 // const char *password = "igdigital3362";
@@ -991,8 +997,8 @@ void setup()
   motorAlt.setAcceleration(100.0f * MICROSTEPPING);
 
   // Direções (mantive como você tinha)
-  motorAz.setPinsInverted(true, false);
-  motorAlt.setPinsInverted(false, false);
+  motorAz.setPinsInverted(false, false);
+  motorAlt.setPinsInverted(true, false, false);
 
   motorAz.setCurrentPosition(0);
   motorAlt.setCurrentPosition(0);
@@ -1000,7 +1006,7 @@ void setup()
   // ----- HTTP -----
   configurarRotas(); // Chama a função para configurar as rotas de movimento
   Serial.println("[HTTP] Servidor iniciado. Rotas:");
-  Serial.println("  GET /controle?comando=direita  (direita)");
+  Serial.println("  GET /controle?comando=direita  (direita)"); 
   Serial.println("  GET /controle?comando=esquerda (esquerda)");
   Serial.println("  GET /controle?comando=cima     (cima)");
   Serial.println("  GET /controle?comando=baixo    (baixo)");
