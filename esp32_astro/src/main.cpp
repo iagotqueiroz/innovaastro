@@ -43,7 +43,7 @@ static const float MANUAL_MOVE_DEG =
 static const float MANUAL_AZ_MIN_DEG = 0.0f;
 static const float MANUAL_AZ_MAX_DEG = 350.0f;
 
-static const float MANUAL_ALT_MIN_DEG = 0.0f;
+static const float MANUAL_ALT_MIN_DEG = -27.0f;
 static const float MANUAL_ALT_MAX_DEG = 90.0f;
 
 // No HOME da ALT o tubo está 27° abaixo do horizonte
